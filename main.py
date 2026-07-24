@@ -1,11 +1,13 @@
 import os
 import logging
 import random
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 import markovify
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
-# Logging သတ်မှတ်ခြင်း
+# Logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 TELEGRAM_TOKEN = os.getenv("BOT_TOKEN")
@@ -13,7 +15,23 @@ DATA_FILE = "chat_memory.txt"
 CHAT_SETTINGS = {}
 KNOWN_CHATS = set()
 
-# Admin စစ်ဆေးပေးသည့် Function
+# Render Web Service အတွက် Port Respond အမှန်တကယ် ပေးမည့် Server
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html')
+        self.end_headers()
+        self.wfile.write(b"Bot is running smoothly!")
+
+    def log_message(self, format, *args):
+        return  # Log တွေ အများကြီး မတက်အောင် ပိတ်ထားခြင်း
+
+def run_health_check_server():
+    port = int(os.environ.get("PORT", 8080))
+    server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
+    server.serve_forever()
+
+# Admin စစ်ဆေးခြင်း
 async def is_admin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
     if update.effective_chat.type == "private":
         return True
@@ -22,13 +40,11 @@ async def is_admin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
     member = await context.bot.get_chat_member(chat_id, user_id)
     return member.status in ["creator", "administrator"]
 
-# Member စကားလုံးများကို Auto မှတ်ထားပေးမည့် Function
 def save_text(text: str):
     if len(text.split()) >= 1 and not text.startswith("/"):
         with open(DATA_FILE, "a", encoding="utf-8") as f:
             f.write(text + "\n")
 
-# မှတ်ထားသော စကားလုံးများဖြင့် AI ပုံစံ ပြန်ပြောမည့် Function
 def generate_ai_reply() -> str:
     if not os.path.exists(DATA_FILE):
         return "ကျွန်တော် စကားလုံးတွေ မှတ်နေတုန်းပါပဲ၊ Group ထဲမှာ စကားများများ ပြောပေးကြပါ။"
@@ -53,12 +69,11 @@ def generate_ai_reply() -> str:
         logging.error(f"Error generating reply: {e}")
         return "စကားပြန်ပြောဖို့ အချက်အလက် နည်းနေသေးလို့ပါဗျာ။"
 
-# COMMAND: /start
+# COMMANDS
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     KNOWN_CHATS.add(update.effective_chat.id)
     await update.message.reply_text("မင်္ဂလာပါ။ AI Auto-Reply, Mentions & Broadcast စနစ်များပါဝင်သော Telegram Bot ဖြစ်ပါတယ်။ /help ကို နှိပ်ပြီး အသုံးပြုနည်း ကြည့်နိုင်ပါတယ်။")
 
-# COMMAND: /help
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = (
         "🤖 **Bot အသုံးပြုနိုင်သော Command များ**\n\n"
@@ -76,7 +91,6 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(help_text, parse_mode="Markdown")
 
-# COMMAND: /broadcast (Broadcasting Feature)
 async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update, context):
         await update.message.reply_text("❌ ဒီ Command ကို Admin သာ အသုံးပြုနိုင်ပါတယ်။")
@@ -95,7 +109,6 @@ async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
     await update.message.reply_text(f"✅ Chat ပေါင်း {count} ခုသို့ စာကြေညာချက် ပို့ပြီးပါပြီ။")
 
-# COMMAND: /tagall or /mention (Member Mention Feature)
 async def tagall_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update, context):
         await update.message.reply_text("❌ Admin သာလျှင် Member များကို Tag ခေါ်နိုင်ပါတယ်။")
@@ -104,7 +117,6 @@ async def tagall_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     notice = " ".join(context.args) if context.args else "လူစုံတက်စုံ သတိပေးချက်!"
     await update.message.reply_text(f"📣 **{notice}**\n\n@all @everyone")
 
-# COMMAND: /add
 async def add_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
         await update.message.reply_text("💡 အသုံးပြုပုံ: `/add မင်္ဂလာပါဗျာ`", parse_mode="Markdown")
@@ -113,7 +125,6 @@ async def add_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     save_text(text_to_add)
     await update.message.reply_text(f"✅ စကားလုံး မှတ်ယူလိုက်ပါပြီ: \"{text_to_add}\"")
 
-# COMMAND: /setchance
 async def setchance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update, context):
         await update.message.reply_text("❌ Admin သာလျှင် Chance သတ်မှတ်ပိုင်ခွင့် ရှိပါတယ်။")
@@ -129,7 +140,6 @@ async def setchance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("0 မှ 100 အကြား ကိန်းဂဏန်းသာ ထည့်ပါ။")
 
-# COMMAND: /boton & /botoff
 async def toggle_bot_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update, context):
         await update.message.reply_text("❌ Admin သာလျှင် ပိတ်/ဖွင့် ပြုလုပ်နိုင်ပါတယ်။")
@@ -144,7 +154,6 @@ async def toggle_bot_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         CHAT_SETTINGS.setdefault(chat_id, {})["enabled"] = False
         await update.message.reply_text("❌ Bot စကားပြောစနစ်ကို ပိတ်လိုက်ပါပြီ။")
 
-# COMMAND: /stats
 async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE, "r", encoding="utf-8") as f:
@@ -153,7 +162,6 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("📊 လက်ရှိတွင် မှတ်ထားသော စကားလုံး မရှိသေးပါ။")
 
-# COMMAND: /resetmemory
 async def resetmemory_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update, context):
         await update.message.reply_text("❌ Admin သာလျှင် Memory ဖျက်ပိုင်ခွင့် ရှိပါတယ်။")
@@ -164,7 +172,6 @@ async def resetmemory_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     else:
         await update.message.reply_text("ဖျက်စရာ အချက်အလက် မရှိပါ။")
 
-# Message Handler
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     KNOWN_CHATS.add(chat_id)
@@ -197,15 +204,15 @@ def main():
         print("Error: BOT_TOKEN လိုအပ်နေပါသည်။")
         return
 
+    # Render Port ပွင့်မထားလို့ တက်တဲ့ Timed Out ကို ဖြေရှင်းရန် Web Server စတင်ခြင်း
+    threading.Thread(target=run_health_check_server, daemon=True).start()
+
     app = Application.builder().token(TELEGRAM_TOKEN).build()
 
-    # Public Commands
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("stats", stats_command))
     app.add_handler(CommandHandler("add", add_command))
-
-    # Management & Broadcast Commands
     app.add_handler(CommandHandler("broadcast", broadcast_command))
     app.add_handler(CommandHandler("tagall", tagall_command))
     app.add_handler(CommandHandler("mention", tagall_command))
@@ -214,7 +221,6 @@ def main():
     app.add_handler(CommandHandler("botoff", toggle_bot_command))
     app.add_handler(CommandHandler("resetmemory", resetmemory_command))
 
-    # Message Handler
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     print("Markov Learning Bot စတင်နေပါပြီ...")
