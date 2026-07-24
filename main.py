@@ -14,7 +14,9 @@ DATA_FILE = "chat_memory.txt"
 CHAT_SETTINGS = {}
 KNOWN_CHATS = set()
 
-# Web Server အတွက် Port Check
+# မန်ဘာများ၏ ID နှင့် နာမည်များကို မှတ်ထားမည့် Database (In-Memory)
+GROUP_MEMBERS = {}
+
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -66,7 +68,7 @@ def generate_ai_reply() -> str:
 # COMMANDS
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     KNOWN_CHATS.add(update.effective_chat.id)
-    await update.message.reply_text("မင်္ဂလာပါ။ AI Auto-Reply Bot ဖြစ်ပါတယ်။ /help ကို နှိပ်ပြီး Command များ ကြည့်နိုင်ပါတယ်။")
+    await update.message.reply_text("မင်္ဂလာပါ။ AI Auto-Reply & Tag Bot ဖြစ်ပါတယ်။ /help ကို နှိပ်ပြီး Command များ ကြည့်နိုင်ပါတယ်။")
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = (
@@ -77,7 +79,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• /stats - မှတ်ထားသော စကားလုံး အရေအတွက်ကြည့်ရန်\n"
         "• /add [စာသား] - Bot ကို စကားလုံး တိုက်ရိုက် သင်ပေးရန်\n\n"
         "📢 *Group Admin & Management:*\n"
-        "• /tagall [စာသား] - Member များကို Tag ခေါ်ရန်\n"
+        "• /tagall [စာသား] - Member အားလုံးကို တကယ် Notification ဝင်အောင် Tag ခေါ်ရန်\n"
         "• /setchance [0-100] - Bot Auto ဝင်ပြောမည့် % သတ်မှတ်ရန်\n"
         "• /boton / /botoff - Bot စကားပြောစနစ် ပိတ်/ဖွင့် ရန်\n"
         "• /broadcast [စာသား] - ကြေညာချက် ပို့ရန် (Admin Only)\n"
@@ -85,16 +87,36 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(help_text, parse_mode="Markdown")
 
+# Barker Tag Bot ကဲ့သို့ မန်ဘာများကို ၅ ယောက်တစ်စု တကယ် Notification ဝင်အောင် Tag ခေါ်သည့် စနစ်
 async def tagall_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update, context):
         await update.message.reply_text("❌ Admin သာလျှင် Member များကို Tag ခေါ်နိုင်ပါတယ်။")
         return
     
+    chat_id = update.effective_chat.id
     notice = " ".join(context.args) if context.args else "လူစုံတက်စုံ သတိပေးချက်!"
     
-    # Text Formatting မှန်အောင် ပြင်ဆင်ထားခြင်း
-    reply_text = f"📣 *{notice}*\n\n🔔 @all @everyone"
-    await update.message.reply_text(reply_text, parse_mode="Markdown")
+    members = GROUP_MEMBERS.get(chat_id, {})
+    if not members:
+        await update.message.reply_text("⚠️ Tag ခေါ်ရန် မန်ဘာ စာရင်း မရှိသေးပါ။ မန်ဘာများ Group ထဲတွင် စာတစ်ကြောင်းစီ စကားပြောထားပေးဖို့ လိုအပ်ပါတယ်ဗျာ။")
+        return
+
+    member_items = list(members.items())
+    chunk_size = 5  # တစ်ခါ ပို့ရင် ၅ ယောက်စီ ခွဲပြီး ပို့မည်
+    
+    await update.message.reply_text(f"📣 *{notice}*\n\nTag ခေါ်ခြင်း စတင်နေပါပြီ...", parse_mode="Markdown")
+
+    for i in range(0, len(member_items), chunk_size):
+        chunk = member_items[i:i + chunk_size]
+        mention_text = ""
+        for user_id, name in chunk:
+            # တကယ် Notification ဝင်စေသည့် Text Mention Link
+            mention_text += f"[{name}](tg://user?id={user_id})  "
+
+        try:
+            await context.bot.send_message(chat_id=chat_id, text=mention_text, parse_mode="Markdown")
+        except Exception:
+            pass
 
 async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update, context):
@@ -171,7 +193,12 @@ async def resetmemory_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
+    user = update.effective_user
     KNOWN_CHATS.add(chat_id)
+
+    # မန်ဘာများ စာရိုက်လိုက်သည်နှင့် ID/Name ကို သိမ်းဆည်းခြင်း
+    if user and not user.is_bot:
+        GROUP_MEMBERS.setdefault(chat_id, {})[user.id] = user.first_name
     
     settings = CHAT_SETTINGS.get(chat_id, {"enabled": True, "chance": 0})
     if not settings.get("enabled", True):
