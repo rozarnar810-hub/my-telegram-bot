@@ -8,7 +8,7 @@ import markovify
 from pyrogram import Client, filters
 from pyrogram.types import Message
 
-# Render Port Error မတက်အောင် Web Server ကို သီးသန့် Run ပေးခြင်း
+# Render Port Error မတက်စေရန် Web Server
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -16,14 +16,13 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
         self.wfile.write(b"Bot Active and Running")
         
     def log_message(self, format, *args):
-        return  # Log တွေ ရှုပ်မနေအောင် ပိတ်ထားသည်
+        return
 
 def run_health_check_server():
     port = int(os.environ.get("PORT", 8080))
     server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
     server.serve_forever()
 
-# Web Server ကို Background တွင် စတင်ခြင်း
 threading.Thread(target=run_health_check_server, daemon=True).start()
 
 # API Credentials
@@ -34,7 +33,6 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 OWNER_ID = 7974865879
 
 DATA_FILE = "chat_memory.txt"
-CHAT_SETTINGS = {}
 KNOWN_CHATS = set()
 
 app = Client("my_tag_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
@@ -46,7 +44,7 @@ def save_text(text: str):
 
 def generate_smart_reply(user_message: str) -> str:
     if not os.path.exists(DATA_FILE):
-        return "ကျွန်တော် စကားလုံးတွေ မှတ်နေတုန်းပါပဲ၊ Group ထဲမှာ စကားများများ ပြောပေးကြပါ။"
+        return "ကျွန်တော် စကားလုံးတွေ မှတ်နေတုန်းပါပဲဗျာ။"
 
     try:
         with open(DATA_FILE, "r", encoding="utf-8") as f:
@@ -69,7 +67,7 @@ def generate_smart_reply(user_message: str) -> str:
 
         return reply if reply else random.choice(lines)
     except Exception:
-        return "စကားပြန်ပြောဖို့ အချက်အလက် မရှိသေးပါဗျာ။"
+        return "မင်္ဂလာပါဗျာ။"
 
 def is_owner(user_id: int) -> bool:
     return user_id == OWNER_ID
@@ -77,7 +75,7 @@ def is_owner(user_id: int) -> bool:
 @app.on_message(filters.command("start"))
 async def start_cmd(client: Client, message: Message):
     KNOWN_CHATS.add(message.chat.id)
-    await message.reply_text("မင်္ဂလာပါ။ AI Auto-Reply & Tag Bot ဖြစ်ပါတယ်။")
+    await message.reply_text("မင်္ဂလာပါ။ စာမထောက်ဘဲ အလိုအလျောက် စကားပြန်ပေးမယ့် AI Bot ဖြစ်ပါတယ်။")
 
 @app.on_message(filters.command("help"))
 async def help_cmd(client: Client, message: Message):
@@ -86,8 +84,7 @@ async def help_cmd(client: Client, message: Message):
         "• `/tagall [စာသား]` - မန်ဘာ အားလုံးကို Tag ခေါ်ရန်\n"
         "• `/broadcast [စာသား]` - Group အားလုံးသို့ ကြေညာစာ ပို့ရန်\n"
         "• `/botstats` - Bot သုံးထားသော Group အရေအတွက် စစ်ရန်\n"
-        "• `/add [စာသား]` - Bot ကို စကားသင်ပေးရန်\n"
-        "• `/setchance [0-100]` - Auto ပြောမည့် နှုန်းသတ်မှတ်ရန်"
+        "• `/add [စာသား]` - Bot ကို စကားသင်ပေးရန်"
     )
     await message.reply_text(help_text)
 
@@ -130,7 +127,7 @@ async def tagall_cmd(client: Client, message: Message):
 @app.on_message(filters.command("broadcast"))
 async def broadcast_cmd(client: Client, message: Message):
     if not is_owner(message.from_user.id):
-        await message.reply_text("❌ ဤ Command ကို Bot ပိုင်ရှင် (Owner) သာ အသုံးပြုနိုင်ပါသည်။")
+        await message.reply_text("❌ ဤ Command ကို Bot ကိုယ်တိုင် ပိုင်ရှင် (Owner) သာ အသုံးပြုနိုင်ပါသည်။")
         return
 
     if len(message.text.split()) < 2:
@@ -184,48 +181,24 @@ async def add_cmd(client: Client, message: Message):
     save_text(text_to_add)
     await message.reply_text(f"✅ စကားလုံး မှတ်ယူလိုက်ပါပြီ: \"{text_to_add}\"")
 
-@app.on_message(filters.command("setchance"))
-async def setchance_cmd(client: Client, message: Message):
-    if not is_owner(message.from_user.id):
-        await message.reply_text("❌ ဤ Command ကို Bot ပိုင်ရှင် (Owner) သာ အသုံးပြုနိုင်ပါသည်။")
-        return
-
-    args = message.text.split()
-    if len(args) < 2 or not args[1].isdigit():
-        await message.reply_text("💡 အသုံးပြုပုံ: `/setchance 20` (0 မှ 100 အထိ)")
-        return
-
-    chance = int(args[1])
-    if 0 <= chance <= 100:
-        CHAT_SETTINGS.setdefault(message.chat.id, {})["chance"] = chance
-        await message.reply_text(f"🎯 Bot အလိုအလျောက် ဝင်ပြောမည့် နှုန်းကို {chance}% သို့ ပြောင်းလိုက်ပါပြီ။")
-
-@app.on_message(filters.text & ~filters.command(["start", "help", "tagall", "broadcast", "botstats", "add", "setchance"]))
+# ⭐️ မန်ဘာများ စာရိုက်လိုက်တာနဲ့ (Mention ခေါ်စရာမလိုဘဲ) အလိုအလျောက် စာပြန်ပေးမည့် စနစ်
+@app.on_message(filters.text & ~filters.command(["start", "help", "tagall", "broadcast", "botstats", "add"]))
 async def handle_messages(client: Client, message: Message):
     KNOWN_CHATS.add(message.chat.id)
 
-    if message.chat.type.value == "private":
-        reply = generate_smart_reply(message.text)
-        await message.reply_text(reply)
+    # ကိုယ့်မက်ဆေ့ခ်ျ ကိုယ်ပြန်မဖြေမိစေရန်
+    me = await client.get_me()
+    if message.from_user and message.from_user.id == me.id:
         return
 
+    # မန်ဘာပြောသော စကားကို မှတ်တမ်းတင်မည်
     save_text(message.text)
-    chat_id = message.chat.id
-    settings = CHAT_SETTINGS.get(chat_id, {"enabled": True, "chance": 0})
-    
-    if not settings.get("enabled", True):
-        return
 
-    bot = await client.get_me()
-    is_mentioned = bot.username and f"@{bot.username}" in message.text
-    is_reply = message.reply_to_message and message.reply_to_message.from_user.id == bot.id
+    # အနီးစပ်ဆုံး ဖြေကြားမည့် စကားကို ရှာမည်
+    reply = generate_smart_reply(message.text)
     
-    auto_chance = settings.get("chance", 0)
-    should_reply = random.randint(1, 100) <= auto_chance if auto_chance > 0 else False
-
-    if is_mentioned or is_reply or should_reply:
-        reply = generate_smart_reply(message.text)
-        await message.reply_text(reply)
+    # စာမထောက်ဘဲ အလိုအလျောက် Reply ပြန်မည်
+    await message.reply_text(reply)
 
 print("Bot စတင်နေပါပြီ...")
 app.run()
