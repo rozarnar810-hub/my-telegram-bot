@@ -27,21 +27,20 @@ API_ID = 31788996
 API_HASH = "0c6714a879b2b1abba75dc4526521ca8"
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
+# ⭐️ သင့်ရဲ့ Owner ID အမှန်ကို ထည့်သွင်းပြီးပါပြီ
+OWNER_ID = 7974865879
+
 DATA_FILE = "chat_memory.txt"
 CHAT_SETTINGS = {}
-
-# Bot ရောက်ဖူးသမျှ Group/Chat ID များကို သိမ်းဆည်းရန်
 KNOWN_CHATS = set()
 
 app = Client("my_tag_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
-# စာသားများ Auto Save ပြုလုပ်ခြင်း
 def save_text(text: str):
     if len(text.split()) >= 1 and not text.startswith("/"):
         with open(DATA_FILE, "a", encoding="utf-8") as f:
             f.write(text.strip() + "\n")
 
-# မန်ဘာပြောသော စကားလုံးနှင့် မှတ်ထားသော စာများထဲမှ အနီးစပ်ဆုံး ရှာ၍ ပြန်ဖြေပေးသည့် စနစ်
 def generate_smart_reply(user_message: str) -> str:
     if not os.path.exists(DATA_FILE):
         return "ကျွန်တော် စကားလုံးတွေ မှတ်နေတုန်းပါပဲ၊ Group ထဲမှာ စကားများများ ပြောပေးကြပါ။"
@@ -53,63 +52,53 @@ def generate_smart_reply(user_message: str) -> str:
         if not lines:
             return "စကားလုံး အချက်အလက် မရှိသေးပါဗျာ။"
 
-        # 1. တိုက်ရိုက် သို့မဟုတ် အနီးစပ်ဆုံး တူညီသည့် စာကြောင်းကို စစ်ဆေးခြင်း (Similarity Check)
+        # Similarity Check (အနီးစပ်ဆုံး စကားကို ရှာခြင်း)
         matches = difflib.get_close_matches(user_message, lines, n=3, cutoff=0.3)
         if matches:
             return random.choice(matches)
 
-        # 2. မန်ဘာပြောသည့် စကားလုံး အချို့ ပါဝင်နေသည့် စာကြောင်းများ ရှာခြင်း
         matched_lines = [l for l in lines if any(word in l for word in user_message.split() if len(word) > 2)]
         if matched_lines:
             return random.choice(matched_lines)
 
-        # 3. အနီးစပ်ဆုံး မတွေ့ပါက Markovify AI ဖြင့် စကားကြောင်း ဆက်ပြီး ပြန်ဖြေခြင်း
         text_data = "\n".join(lines)
         text_model = markovify.NewlineText(text_data, state_size=1)
         reply = text_model.make_sentence(tries=50)
 
         return reply if reply else random.choice(lines)
-
     except Exception:
         return "စကားပြန်ပြောဖို့ အချက်အလက် မရှိသေးပါဗျာ။"
 
-async def is_admin(client: Client, chat_id: int, user_id: int) -> bool:
-    try:
-        member = await client.get_chat_member(chat_id, user_id)
-        return member.status.value in ["owner", "administrator"]
-    except Exception:
-        return False
+# 👑 Owner ဟုတ်မဟုတ် စစ်ဆေးသည့် Function
+def is_owner(user_id: int) -> bool:
+    return user_id == OWNER_ID
 
 @app.on_message(filters.command("start"))
 async def start_cmd(client: Client, message: Message):
     KNOWN_CHATS.add(message.chat.id)
-    await message.reply_text("မင်္ဂလာပါ။ Group Member အားလုံးကို အလိုအလျောက် စစ်ဆေးပြီး Tag ခေါ်ပေးနိုင်သော AI Bot ဖြစ်ပါတယ်ဗျာ။ /help ကို နှိပ်ပါ။")
+    await message.reply_text("မင်္ဂလာပါ။ AI Auto-Reply & Tag Bot ဖြစ်ပါတယ်။")
 
 @app.on_message(filters.command("help"))
 async def help_cmd(client: Client, message: Message):
     help_text = (
-        "🤖 **Bot အသုံးပြုနိုင်သော Command များ**\n\n"
-        "📢 **Tag စနစ်:**\n"
-        "• `/tagall [စာသား]` - Group ထဲရှိ မန်ဘာ အားလုံးကို အလိုအလျောက် စစ်ဆေးပြီး Mention ခေါ်ရန်\n\n"
-        "💬 **AI & Group Management:**\n"
-        "• `/setchance [0-100]` - Auto ပြောမည့် နှုန်းသတ်မှတ်ရန်\n"
-        "• `/boton` / `/botoff` - Bot ပိတ်/ဖွင့်ရန်\n"
-        "• `/add [စာသား]` - Bot ကို စကားလုံး တိုက်ရိုက် သင်ပေးရန်\n\n"
-        "👑 **Admin / Owner Only:**\n"
-        "• `/broadcast [စာသား]` - Bot ရောက်နေသည့် Group အားလုံးသို့ ကြေညာစာ ပို့ရန်\n"
-        "• `/botstats` - Bot ကို Group ဘယ်နှစ်ခုမှာ သုံးထားလဲ စစ်ရန်"
+        "🤖 **Bot အသုံးပြုနိုင်သော Command များ (Owner Only)**\n\n"
+        "• `/tagall [စာသား]` - မန်ဘာ အားလုံးကို Tag ခေါ်ရန်\n"
+        "• `/broadcast [စာသား]` - Group အားလုံးသို့ ကြေညာစာ ပို့ရန်\n"
+        "• `/botstats` - Bot သုံးထားသော Group အရေအတွက် စစ်ရန်\n"
+        "• `/add [စာသား]` - Bot ကို စကားသင်ပေးရန်\n"
+        "• `/setchance [0-100]` - Auto ပြောမည့် နှုန်းသတ်မှတ်ရန်"
     )
     await message.reply_text(help_text)
 
-# ⭐️ မန်ဘာ အားလုံးကို Auto စစ်ဆေးပြီး Tag ခေါ်သည့် စနစ်
+# ⭐️ မန်ဘာ အားလုံးကို Tag ခေါ်သည့် စနစ် (Owner Only)
 @app.on_message(filters.command("tagall"))
 async def tagall_cmd(client: Client, message: Message):
-    if message.chat.type.value == "private":
-        await message.reply_text("ဒီ Command ကို Group ထဲမှာသာ အသုံးပြုနိုင်ပါတယ်ဗျာ။")
+    if not is_owner(message.from_user.id):
+        await message.reply_text("❌ ဤ Command ကို Bot ပိုင်ရှင် (Owner) သာ အသုံးပြုနိုင်ပါသည်။")
         return
 
-    if not await is_admin(client, message.chat.id, message.from_user.id):
-        await message.reply_text("❌ Admin သာလျှင် Member များကို Tag ခေါ်နိုင်ပါတယ်။")
+    if message.chat.type.value == "private":
+        await message.reply_text("ဒီ Command ကို Group ထဲမှာသာ အသုံးပြုနိုင်ပါတယ်ဗျာ။")
         return
 
     notice = message.text.split(maxsplit=1)[1] if len(message.text.split()) > 1 else "လူစုံတက်စုံ သတိပေးချက်!"
@@ -138,11 +127,11 @@ async def tagall_cmd(client: Client, message: Message):
     except Exception as e:
         await message.reply_text(f"❌ အမှားဖြစ်ပေါ်ပါသည်: {e}")
 
-# 📢 ကြော်ငြာစာ ပို့သည့် စနစ် (Broadcast to All Groups)
+# 📢 ကြော်ငြာစာ ပို့သည့် စနစ် (Owner Only)
 @app.on_message(filters.command("broadcast"))
 async def broadcast_cmd(client: Client, message: Message):
-    if not await is_admin(client, message.chat.id, message.from_user.id):
-        await message.reply_text("❌ ဒီ Command ကို Admin သာ အသုံးပြုနိုင်ပါတယ်။")
+    if not is_owner(message.from_user.id):
+        await message.reply_text("❌ ဤ Command ကို Bot ပိုင်ရှင် (Owner) သာ အသုံးပြုနိုင်ပါသည်။")
         return
 
     if len(message.text.split()) < 2:
@@ -164,11 +153,11 @@ async def broadcast_cmd(client: Client, message: Message):
 
     await message.reply_text(f"✅ စုစုပေါင်း Group/Chat **{count}** ခုသို့ ကြေညာစာ ပို့ပြီးပါပြီ။")
 
-# 📊 Bot ကို Group ဘယ်နှစ်ခုမှာ သုံးထားလဲ စစ်ဆေးသည့် စနစ်
+# 📊 Bot ကို Group ဘယ်နှစ်ခုမှာ သုံးထားလဲ စစ်ဆေးခြင်း (Owner Only)
 @app.on_message(filters.command("botstats"))
 async def botstats_cmd(client: Client, message: Message):
-    if not await is_admin(client, message.chat.id, message.from_user.id):
-        await message.reply_text("❌ ဒီ Command ကို Admin သာ အသုံးပြုနိုင်ပါတယ်။")
+    if not is_owner(message.from_user.id):
+        await message.reply_text("❌ ဤ Command ကို Bot ပိုင်ရှင် (Owner) သာ အသုံးပြုနိုင်ပါသည်။")
         return
 
     total_groups = len(KNOWN_CHATS)
@@ -184,9 +173,13 @@ async def botstats_cmd(client: Client, message: Message):
     )
     await message.reply_text(stats_msg)
 
-# 💬 စကားလုံး သင်ပေးသည့် Command
+# 💬 စကားသင်ပေးခြင်း (Owner Only)
 @app.on_message(filters.command("add"))
 async def add_cmd(client: Client, message: Message):
+    if not is_owner(message.from_user.id):
+        await message.reply_text("❌ ဤ Command ကို Bot ပိုင်ရှင် (Owner) သာ အသုံးပြုနိုင်ပါသည်။")
+        return
+
     if len(message.text.split()) < 2:
         await message.reply_text("💡 အသုံးပြုပုံ: `/add မင်္ဂလာပါဗျာ`")
         return
@@ -194,11 +187,11 @@ async def add_cmd(client: Client, message: Message):
     save_text(text_to_add)
     await message.reply_text(f"✅ စကားလုံး မှတ်ယူလိုက်ပါပြီ: \"{text_to_add}\"")
 
-# ⚙️ Auto Reply Chance သတ်မှတ်ခြင်း
+# ⚙️ Chance သတ်မှတ်ခြင်း (Owner Only)
 @app.on_message(filters.command("setchance"))
 async def setchance_cmd(client: Client, message: Message):
-    if not await is_admin(client, message.chat.id, message.from_user.id):
-        await message.reply_text("❌ Admin သာလျှင် Chance သတ်မှတ်ပိုင်ခွင့် ရှိပါတယ်။")
+    if not is_owner(message.from_user.id):
+        await message.reply_text("❌ ဤ Command ကို Bot ပိုင်ရှင် (Owner) သာ အသုံးပြုနိုင်ပါသည်။")
         return
 
     args = message.text.split()
@@ -211,10 +204,9 @@ async def setchance_cmd(client: Client, message: Message):
         CHAT_SETTINGS.setdefault(message.chat.id, {})["chance"] = chance
         await message.reply_text(f"🎯 Bot အလိုအလျောက် ဝင်ပြောမည့် နှုန်းကို {chance}% သို့ ပြောင်းလိုက်ပါပြီ။")
 
-# 💬 စကားပြန်ပြောခြင်း နှင့် စာAuto Save လုပ်ခြင်း
-@app.on_message(filters.text & ~filters.command(["start", "help", "tagall", "broadcast", "botstats", "add", "setchance", "boton", "botoff"]))
+# 💬 မန်ဘာများ စကားပြောလျှင် အနီးစပ်ဆုံး ရှာပြီး ပြန်ဖြေခြင်း နှင့် စာမှတ်ခြင်း
+@app.on_message(filters.text & ~filters.command(["start", "help", "tagall", "broadcast", "botstats", "add", "setchance"]))
 async def handle_messages(client: Client, message: Message):
-    # Chat ID အား မှတ်ထားခြင်း
     KNOWN_CHATS.add(message.chat.id)
 
     if message.chat.type.value == "private":
@@ -222,7 +214,6 @@ async def handle_messages(client: Client, message: Message):
         await message.reply_text(reply)
         return
 
-    # မန်ဘာ ပြောသော စကားကို Auto Save ပြုလုပ်ခြင်း
     save_text(message.text)
     chat_id = message.chat.id
     settings = CHAT_SETTINGS.get(chat_id, {"enabled": True, "chance": 0})
@@ -237,7 +228,6 @@ async def handle_messages(client: Client, message: Message):
     auto_chance = settings.get("chance", 0)
     should_reply = random.randint(1, 100) <= auto_chance if auto_chance > 0 else False
 
-    # Bot ကို Mention ခေါ်မှ/Reply ပြန်မှ သို့မဟုတ် Auto Chance မိမှ ပြန်ဖြေမည်
     if is_mentioned or is_reply or should_reply:
         reply = generate_smart_reply(message.text)
         await message.reply_text(reply)
