@@ -8,18 +8,22 @@ import markovify
 from pyrogram import Client, filters
 from pyrogram.types import Message
 
-# Render မအိပ်စေရန် Web Server
+# Render Port Error မတက်အောင် Web Server ကို သီးသန့် Run ပေးခြင်း
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"Bot Active")
+        self.wfile.write(b"Bot Active and Running")
+        
+    def log_message(self, format, *args):
+        return  # Log တွေ ရှုပ်မနေအောင် ပိတ်ထားသည်
 
 def run_health_check_server():
     port = int(os.environ.get("PORT", 8080))
     server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
     server.serve_forever()
 
+# Web Server ကို Background တွင် စတင်ခြင်း
 threading.Thread(target=run_health_check_server, daemon=True).start()
 
 # API Credentials
@@ -27,7 +31,6 @@ API_ID = 31788996
 API_HASH = "0c6714a879b2b1abba75dc4526521ca8"
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
-# ⭐️ သင့်ရဲ့ Owner ID အမှန်ကို ထည့်သွင်းပြီးပါပြီ
 OWNER_ID = 7974865879
 
 DATA_FILE = "chat_memory.txt"
@@ -52,7 +55,6 @@ def generate_smart_reply(user_message: str) -> str:
         if not lines:
             return "စကားလုံး အချက်အလက် မရှိသေးပါဗျာ။"
 
-        # Similarity Check (အနီးစပ်ဆုံး စကားကို ရှာခြင်း)
         matches = difflib.get_close_matches(user_message, lines, n=3, cutoff=0.3)
         if matches:
             return random.choice(matches)
@@ -69,7 +71,6 @@ def generate_smart_reply(user_message: str) -> str:
     except Exception:
         return "စကားပြန်ပြောဖို့ အချက်အလက် မရှိသေးပါဗျာ။"
 
-# 👑 Owner ဟုတ်မဟုတ် စစ်ဆေးသည့် Function
 def is_owner(user_id: int) -> bool:
     return user_id == OWNER_ID
 
@@ -90,7 +91,6 @@ async def help_cmd(client: Client, message: Message):
     )
     await message.reply_text(help_text)
 
-# ⭐️ မန်ဘာ အားလုံးကို Tag ခေါ်သည့် စနစ် (Owner Only)
 @app.on_message(filters.command("tagall"))
 async def tagall_cmd(client: Client, message: Message):
     if not is_owner(message.from_user.id):
@@ -127,7 +127,6 @@ async def tagall_cmd(client: Client, message: Message):
     except Exception as e:
         await message.reply_text(f"❌ အမှားဖြစ်ပေါ်ပါသည်: {e}")
 
-# 📢 ကြော်ငြာစာ ပို့သည့် စနစ် (Owner Only)
 @app.on_message(filters.command("broadcast"))
 async def broadcast_cmd(client: Client, message: Message):
     if not is_owner(message.from_user.id):
@@ -153,7 +152,6 @@ async def broadcast_cmd(client: Client, message: Message):
 
     await message.reply_text(f"✅ စုစုပေါင်း Group/Chat **{count}** ခုသို့ ကြေညာစာ ပို့ပြီးပါပြီ။")
 
-# 📊 Bot ကို Group ဘယ်နှစ်ခုမှာ သုံးထားလဲ စစ်ဆေးခြင်း (Owner Only)
 @app.on_message(filters.command("botstats"))
 async def botstats_cmd(client: Client, message: Message):
     if not is_owner(message.from_user.id):
@@ -173,7 +171,6 @@ async def botstats_cmd(client: Client, message: Message):
     )
     await message.reply_text(stats_msg)
 
-# 💬 စကားသင်ပေးခြင်း (Owner Only)
 @app.on_message(filters.command("add"))
 async def add_cmd(client: Client, message: Message):
     if not is_owner(message.from_user.id):
@@ -187,7 +184,6 @@ async def add_cmd(client: Client, message: Message):
     save_text(text_to_add)
     await message.reply_text(f"✅ စကားလုံး မှတ်ယူလိုက်ပါပြီ: \"{text_to_add}\"")
 
-# ⚙️ Chance သတ်မှတ်ခြင်း (Owner Only)
 @app.on_message(filters.command("setchance"))
 async def setchance_cmd(client: Client, message: Message):
     if not is_owner(message.from_user.id):
@@ -204,7 +200,6 @@ async def setchance_cmd(client: Client, message: Message):
         CHAT_SETTINGS.setdefault(message.chat.id, {})["chance"] = chance
         await message.reply_text(f"🎯 Bot အလိုအလျောက် ဝင်ပြောမည့် နှုန်းကို {chance}% သို့ ပြောင်းလိုက်ပါပြီ။")
 
-# 💬 မန်ဘာများ စကားပြောလျှင် အနီးစပ်ဆုံး ရှာပြီး ပြန်ဖြေခြင်း နှင့် စာမှတ်ခြင်း
 @app.on_message(filters.text & ~filters.command(["start", "help", "tagall", "broadcast", "botstats", "add", "setchance"]))
 async def handle_messages(client: Client, message: Message):
     KNOWN_CHATS.add(message.chat.id)
