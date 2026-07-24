@@ -1,6 +1,9 @@
+import asyncio
+# Python 3.14 Event Loop Issue Fix
+asyncio.set_event_loop(asyncio.new_event_loop())
+
 import os
 import time
-import asyncio
 import random
 import difflib
 import markovify
