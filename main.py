@@ -4,14 +4,11 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from google import genai
 
-# Logging သတ်မှတ်ခြင်း
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
-# Environment Variables မှ Token များနှင့် Key များကို ဖတ်ယူခြင်း
 TELEGRAM_TOKEN = os.getenv("BOT_TOKEN")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-# Gemini Client ကို စတင်ပြင်ဆင်ခြင်း
 client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -24,11 +21,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Error: GEMINI_API_KEY ထည့်သွင်းထားခြင်း မရှိသေးပါ။")
         return
 
-    # Typing status ပြသပေးခြင်း
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
 
     try:
-        # Gemini 2.5 Flash Model သို့ စာပို့ပြီး Response ယူခြင်း
+        # မော်ဒယ် နာမည် ပြင်ဆင်ထားသည်
         response = client.models.generate_content(
             model='gemini-2.5-flash',
             contents=user_text,
@@ -36,7 +32,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(response.text)
     except Exception as e:
         logging.error(f"Gemini API Error: {e}")
-        await update.message.reply_text("တောင်းပန်ပါတယ်၊ စာပြန်စဉ် အမှားတစ်ခု ဖြစ်ပေါ်သွားပါသည်။")
+        await update.message.reply_text(f"API Error ဖြစ်နေပါသည်: {e}")
 
 def main():
     if not TELEGRAM_TOKEN:
@@ -44,10 +40,7 @@ def main():
         return
 
     app = Application.builder().token(TELEGRAM_TOKEN).build()
-
-    # Handlers များ ထည့်သွင်းခြင်း
     app.add_handler(CommandHandler("start", start))
-    # / command မဟုတ်သော ရိုးရိုး စာများ ဝင်လာပါက handle_message သို့ ပို့မည်
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     print("Bot စတင်ပွင့်နေပါပြီ...")
