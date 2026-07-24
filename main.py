@@ -1,24 +1,54 @@
 import os
 import logging
 from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from google import genai
 
 # Logging သတ်မှတ်ခြင်း
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
-# Render ရဲ့ Environment Variables ထဲကနေ BOT_TOKEN ကို အလိုအလျောက် ဖတ်ယူမည်
-TOKEN = os.getenv("BOT_TOKEN")
+# Environment Variables မှ Token များနှင့် Key များကို ဖတ်ယူခြင်း
+TELEGRAM_TOKEN = os.getenv("BOT_TOKEN")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
+# Gemini Client ကို စတင်ပြင်ဆင်ခြင်း
+client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("မင်္ဂလာပါ။ Render Cloud Server ပေါ်ကနေ Bot အလုပ်လုပ်နေပါပြီ!")
+    await update.message.reply_text("မင်္ဂလာပါ။ ကျွန်တော်က Gemini AI နဲ့ ချိတ်ဆက်ထားတဲ့ Telegram Bot ဖြစ်ပါတယ်။ မေးချင်တာတွေကို စာပို့ပြီး မေးမြန်းနိုင်ပါတယ်။")
 
-def main():
-    if not TOKEN:
-        print("Error: BOT_TOKEN လိုအပ်နေပါသည်။ Render Environment Variables ထဲမှာ ထည့်ပေးပါ။")
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_text = update.message.text
+
+    if not client:
+        await update.message.reply_text("Error: GEMINI_API_KEY ထည့်သွင်းထားခြင်း မရှိသေးပါ။")
         return
 
-    app = Application.builder().token(TOKEN).build()
+    # Typing status ပြသပေးခြင်း
+    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+
+    try:
+        # Gemini 2.5 Flash Model သို့ စာပို့ပြီး Response ယူခြင်း
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=user_text,
+        )
+        await update.message.reply_text(response.text)
+    except Exception as e:
+        logging.error(f"Gemini API Error: {e}")
+        await update.message.reply_text("တောင်းပန်ပါတယ်၊ စာပြန်စဉ် အမှားတစ်ခု ဖြစ်ပေါ်သွားပါသည်။")
+
+def main():
+    if not TELEGRAM_TOKEN:
+        print("Error: BOT_TOKEN လိုအပ်နေပါသည်။")
+        return
+
+    app = Application.builder().token(TELEGRAM_TOKEN).build()
+
+    # Handlers များ ထည့်သွင်းခြင်း
     app.add_handler(CommandHandler("start", start))
+    # / command မဟုတ်သော ရိုးရိုး စာများ ဝင်လာပါက handle_message သို့ ပို့မည်
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     print("Bot စတင်ပွင့်နေပါပြီ...")
     app.run_polling()
