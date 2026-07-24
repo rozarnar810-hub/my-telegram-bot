@@ -33,12 +33,13 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 OWNER_ID = 7974865879
 
 DATA_FILE = "chat_memory.txt"
+CHAT_SETTINGS = {}
 KNOWN_CHATS = set()
 
 app = Client("my_tag_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
 def save_text(text: str):
-    if len(text.split()) >= 1 and not text.startswith("/"):
+    if text and len(text.split()) >= 1 and not text.startswith("/"):
         with open(DATA_FILE, "a", encoding="utf-8") as f:
             f.write(text.strip() + "\n")
 
@@ -84,7 +85,8 @@ async def help_cmd(client: Client, message: Message):
         "• `/tagall [စာသား]` - မန်ဘာ အားလုံးကို Tag ခေါ်ရန်\n"
         "• `/broadcast [စာသား]` - Group အားလုံးသို့ ကြေညာစာ ပို့ရန်\n"
         "• `/botstats` - Bot သုံးထားသော Group အရေအတွက် စစ်ရန်\n"
-        "• `/add [စာသား]` - Bot ကို စကားသင်ပေးရန်"
+        "• `/add [စာသား]` - Bot ကို စကားသင်ပေးရန်\n"
+        "• `/setchance [0-100]` - အလိုအလျောက် ဝင်ပြောမည့် နှုန်းသတ်မှတ်ရန်"
     )
     await message.reply_text(help_text)
 
@@ -127,7 +129,7 @@ async def tagall_cmd(client: Client, message: Message):
 @app.on_message(filters.command("broadcast"))
 async def broadcast_cmd(client: Client, message: Message):
     if not is_owner(message.from_user.id):
-        await message.reply_text("❌ ဤ Command ကို Bot ကိုယ်တိုင် ပိုင်ရှင် (Owner) သာ အသုံးပြုနိုင်ပါသည်။")
+        await message.reply_text("❌ ဤ Command ကို Bot ပိုင်ရှင် (Owner) သာ အသုံးပြုနိုင်ပါသည်။")
         return
 
     if len(message.text.split()) < 2:
@@ -181,24 +183,44 @@ async def add_cmd(client: Client, message: Message):
     save_text(text_to_add)
     await message.reply_text(f"✅ စကားလုံး မှတ်ယူလိုက်ပါပြီ: \"{text_to_add}\"")
 
-# ⭐️ မန်ဘာများ စာရိုက်လိုက်တာနဲ့ (Mention ခေါ်စရာမလိုဘဲ) အလိုအလျောက် စာပြန်ပေးမည့် စနစ်
-@app.on_message(filters.text & ~filters.command(["start", "help", "tagall", "broadcast", "botstats", "add"]))
+@app.on_message(filters.command("setchance"))
+async def setchance_cmd(client: Client, message: Message):
+    if not is_owner(message.from_user.id):
+        await message.reply_text("❌ ဤ Command ကို Bot ပိုင်ရှင် (Owner) သာ အသုံးပြုနိုင်ပါသည်။")
+        return
+
+    args = message.text.split()
+    if len(args) < 2 or not args[1].isdigit():
+        await message.reply_text("💡 အသုံးပြုပုံ: `/setchance 50` (0 မှ 100 အထိ)")
+        return
+
+    chance = int(args[1])
+    if 0 <= chance <= 100:
+        CHAT_SETTINGS.setdefault(message.chat.id, {})["chance"] = chance
+        await message.reply_text(f"🎯 Bot အလိုအလျောက် ဝင်ပြောမည့် နှုန်းကို {chance}% သို့ ပြောင်းလိုက်ပါပြီ။")
+
+# ⭐️ မန်ဘာများ စာရိုက်လိုက်လျှင် စာမထောက်ဘဲ အလိုအလျောက် စာပြန်ပေးမည့် စနစ်
+@app.on_message(filters.text & ~filters.command(["start", "help", "tagall", "broadcast", "botstats", "add", "setchance"]))
 async def handle_messages(client: Client, message: Message):
+    if not message.chat or not message.text:
+        return
+
     KNOWN_CHATS.add(message.chat.id)
 
-    # ကိုယ့်မက်ဆေ့ခ်ျ ကိုယ်ပြန်မဖြေမိစေရန်
     me = await client.get_me()
     if message.from_user and message.from_user.id == me.id:
         return
 
-    # မန်ဘာပြောသော စကားကို မှတ်တမ်းတင်မည်
     save_text(message.text)
-
-    # အနီးစပ်ဆုံး ဖြေကြားမည့် စကားကို ရှာမည်
-    reply = generate_smart_reply(message.text)
     
-    # စာမထောက်ဘဲ အလိုအလျောက် Reply ပြန်မည်
-    await message.reply_text(reply)
+    chat_id = message.chat.id
+    settings = CHAT_SETTINGS.get(chat_id, {"chance": 100})
+    auto_chance = settings.get("chance", 100)
+
+    # သတ်မှတ်ထားသော Chance နှုန်းအတွင်း ပါလျှင် (သို့မဟုတ် 100 ဖြစ်နေလျှင်) အလိုအလျောက် ပြန်မည်
+    if auto_chance > 0 and random.randint(1, 100) <= auto_chance:
+        reply = generate_smart_reply(message.text)
+        await message.reply_text(reply)
 
 print("Bot စတင်နေပါပြီ...")
 app.run()
