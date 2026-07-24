@@ -20,13 +20,32 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 OWNER_ID = 7974865879
 
 DATA_FILE = "chat_memory.txt"
+CHATS_FILE = "known_chats.txt"
 CHAT_SETTINGS = {}
-KNOWN_CHATS = set()
 USER_WARNS = {}
-NIGHT_MODE_TASKS = {}
+AFK_USERS = {}  # {user_id: reason}
+BANNED_WORDS = ["spamlink", "badword1", "badword2"] # လိုအပ်သော bad word များ ထည့်နိုင်သည်
 
 # Global Control Flags
 TAGGING_ACTIVE = {}
+
+# Persistent Known Chats
+def load_known_chats():
+    chats = set()
+    if os.path.exists(CHATS_FILE):
+        with open(CHATS_FILE, "r", encoding="utf-8") as f:
+            for line in f:
+                if line.strip().lstrip("-").isdigit():
+                    chats.add(int(line.strip()))
+    return chats
+
+def save_known_chat(chat_id):
+    KNOWN_CHATS.add(chat_id)
+    with open(CHATS_FILE, "w", encoding="utf-8") as f:
+        for c in KNOWN_CHATS:
+            f.write(f"{c}\n")
+
+KNOWN_CHATS = load_known_chats()
 
 # Pyrogram Client
 app = Client("my_tag_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
@@ -91,7 +110,7 @@ def parse_time(time_str: str) -> int:
         return value * 86400
     return 0
 
-# 🔘 INTERACTIVE BUTTON UI (EXTENDED)
+# 🔘 INTERACTIVE BUTTON UI
 def get_help_buttons():
     buttons = [
         [
@@ -109,6 +128,10 @@ def get_help_buttons():
         [
             InlineKeyboardButton("🎲 Fun & Games", callback_data="help_games"),
             InlineKeyboardButton("🎈 General & Utility", callback_data="help_general")
+        ],
+        [
+            InlineKeyboardButton("ℹ️ About & Support", callback_data="help_about"),
+            InlineKeyboardButton("📜 Rules & Policy", callback_data="help_rules")
         ]
     ]
     return InlineKeyboardMarkup(buttons)
@@ -119,10 +142,10 @@ def get_back_button():
 # 🤖 BOT MAIN COMMANDS
 @app.on_message(filters.command("start"))
 async def start_cmd(client: Client, message: Message):
-    KNOWN_CHATS.add(message.chat.id)
+    save_known_chat(message.chat.id)
     text = (
         "👋 **မင်္ဂလာပါ!**\n\n"
-        "ကျွန်တော်ကတော့ Group မန်နေးဂျာ စနစ်၊ Admin တဂ်ခေါ်စနစ်၊ AI Auto-Chat၊ Security နဲ့ Fun Games များ အစုံအလင် ပါဝင်တဲ့ **24/7 Multi-Functional Telegram Bot** ဖြစ်ပါတယ်။\n\n"
+        "ကျွန်တော်ကတော့ Group မန်နေးဂျာ စနစ်၊ Admin တဂ်ခေါ်စနစ်၊ AI Auto-Chat၊ Security၊ AFK နဲ့ Fun Games များ အစုံအလင် ပါဝင်တဲ့ **24/7 Multi-Functional Telegram Bot** ဖြစ်ပါတယ်။\n\n"
         "👇 အောက်ပါ Button များကို နှိပ်ပြီး Command များကို လေ့လာနိုင်ပါတယ်ဗျာ။"
     )
     await message.reply_text(text, reply_markup=get_help_buttons())
@@ -166,11 +189,11 @@ async def callback_handler(client: Client, query: CallbackQuery):
             "🛡️ **Group Security & Safeguard**\n\n"
             "• `/antilink [on/off]` - Link ပို့ပါက အလိုအလျောက် ဖျက်ရန်\n"
             "• `/welcome [on/off]` - Welcome Message ပြ/မပြ သတ်မှတ်ရန်\n"
-            "• `/lock [type]` - Media ပိတ်ရန် (sticker/photo/video/link/forward/audio/voice/document)\n"
+            "• `/setrules [စာသား]` - Group စည်းကမ်းချက် သတ်မှတ်ရန်\n"
+            "• `/rules` - Group စည်းကမ်းချက်များ ကြည့်ရန်\n"
+            "• `/lock [type]` - Media ပိတ်ရန်\n"
             "• `/unlock [type]` - ပိတ်ထားသော Media ပြန်ဖွင့်ရန်\n"
-            "• `/warn` - User ကို သတိပေးချက် ပေးရန် (3 ကြိမ်ပြည့်ပါက Mute)\n"
-            "• `/unwarn` - သတိပေးချက် ပြန်ရုပ်သိမ်းရန်\n"
-            "• `/warns` - သတိပေးချက် စာရင်း ကြည့်ရန်"
+            "• `/warn` / `/unwarn` / `/warns` - Warning စနစ် အသုံးပြုရန်"
         )
         await query.message.edit_text(text, reply_markup=get_back_button())
 
@@ -181,11 +204,9 @@ async def callback_handler(client: Client, query: CallbackQuery):
             "• `/tban [10m/1h]` - အချိန်သတ်မှတ်၍ Ban ထားရန်\n"
             "• `/mute` / `/unmute` - စာရိုက်ခွင့် ပိတ်/ဖွင့် ရန်\n"
             "• `/tmute [10m/1h]` - အချိန်သတ်မှတ်၍ Mute ထားရန်\n"
-            "• `/kick` / `/dkick` - Group မှ ထုတ်ရန် (dkick သည် စာပါဖျက်သည်)\n"
+            "• `/kick` / `/dkick` - Group မှ ထုတ်ရန်\n"
             "• `/pin` / `/unpin` / `/unpinall` - Pin/Unpin ပြုလုပ်ရန်\n"
-            "• `/settitle [အမည်]` - Admin Custom Title ပြောင်းရန်\n"
-            "• `/setgtitle [အမည်]` - Group အမည် ပြောင်းရန်\n"
-            "• `/setgdesc [စာသား]` - Group Description ပြောင်းရန်\n"
+            "• `/settitle [အမည်]` - Admin Title ပြောင်းရန်\n"
             "• `/adminlist` - Admin စာရင်း သီးသန့် ထုတ်ပြရန်"
         )
         await query.message.edit_text(text, reply_markup=get_back_button())
@@ -197,7 +218,7 @@ async def callback_handler(client: Client, query: CallbackQuery):
             "• `/purge` - စာများကို အမြောက်အမြား ဖျက်ပစ်ရန်\n"
             "• `/zombies` - Deleted Accounts များ ရှာရန်\n"
             "• `/cleanzombies` - Deleted Accounts များကို Kick ရန်\n"
-            "• `/nightmode [on/off]` - ညဘက် Group တွင် စာရိုက်ခွင့် ပိတ်/ဖွင့် ရန်"
+            "• `/nightmode [on/off]` - ညဘက် Group စာရိုက်ခွင့် ပိတ်/ဖွင့် ရန်"
         )
         await query.message.edit_text(text, reply_markup=get_back_button())
 
@@ -206,35 +227,91 @@ async def callback_handler(client: Client, query: CallbackQuery):
             "🎨 **AI & Media Tools**\n\n"
             "• `/gen [Prompt]` - AI ဖြင့် ပုံဆွဲရန်\n"
             "• `/wimage [Text]` - Welcome Banner ပုံ ဖန်တီးရန်\n"
-            "• `/carbon [Text]` - စာများကို Code Style Image အဖြစ် ပြောင်းရန်"
+            "• `/carbon [Text]` - စာများကို Code Style Image ပြောင်းရန်"
         )
         await query.message.edit_text(text, reply_markup=get_back_button())
 
     elif data == "help_games":
         text = (
             "🎲 **Fun & Games Commands**\n\n"
-            "• `/couples` - Group စုံတွဲ မဲနှိုက်ရန် 👩‍❤️‍👨\n"
+            "• `/couples` - Group စူပါစုံတွဲ မဲနှိုက်ရန် 👩‍❤️‍👨\n"
             "• `/slap` - မန်ဘာကို ပါးရိုက်ရန် 👋\n"
             "• `/roll` - ဂဏန်း Random နှိုက်ရန် (0-100)\n"
             "• `/truth` / `/dare` - Truth or Dare မေးခွန်းများ\n"
             "• `/choose [a] [b]` - Bot ကို ရွေးချယ်ခိုင်းရန်\n"
-            "• `/dice` 🎲 / `/dart` 🎯 / `/basket` 🏀\n"
-            "• `/bowling` 🎳 / `/football` ⚽ / `/slot` 🎰"
+            "• `/dice` 🎲 / `/dart` 🎯 / `/basket` 🏀 / `/slot` 🎰"
         )
         await query.message.edit_text(text, reply_markup=get_back_button())
 
     elif data == "help_general":
         text = (
             "🎈 **General & Utility Commands**\n\n"
+            "• `/afk [အကြောင်းအရာ]` - AFK Mode ဝင်ထားရန်\n"
             "• `/ping` - Bot မြန်ဆန်မှု (Speed) စစ်ရန်\n"
             "• `/id` - User သို့မဟုတ် Group ID ကြည့်ရန်\n"
             "• `/userinfo` / `/info` - User Profile စစ်ရန်\n"
             "• `/groupinfo` - Group အချက်အလက် ကြည့်ရန်\n"
-            "• `/time` - လက်ရှိ အချိန်နှင့် ရက်စွဲ ကြည့်ရန်\n"
-            "• `/math [ပုစ္ဆာ]` - သင်္ချာ တွက်ချက်ရန် (ဥပမာ `/math 25*4`)\n"
-            "• `/crypto [coin]` - Coin ဈေးနှုန်း စစ်ရန် (ဥပမာ `/crypto btc`)"
+            "• `/math [ပုစ္ဆာ]` - သင်္ချာ တွက်ချက်ရန်\n"
+            "• `/time` - လက်ရှိ အချိန်နှင့် ရက်စွဲ ကြည့်ရန်"
         )
         await query.message.edit_text(text, reply_markup=get_back_button())
+
+    elif data == "help_about":
+        text = (
+            "ℹ️ **Bot Information & Support**\n\n"
+            "• **Developer:** Python Pyrogram-based AI Engine\n"
+            "• **Version:** v3.0 Ultimate Edition\n"
+            "• **Uptime:** 24/7 Online Server Status Active\n\n"
+            "အကူအညီနှင့် မေးမြန်းလိုပါက Owner ထံ ဆက်သွယ်နိုင်ပါသည်။"
+        )
+        await query.message.edit_text(text, reply_markup=get_back_button())
+
+    elif data == "help_rules":
+        rules = CHAT_SETTINGS.get(query.message.chat.id, {}).get("rules", "ဤ Group တွင် သီးသန့် စည်းကမ်းချက် မသတ်မှတ်ရသေးပါ။")
+        await query.message.edit_text(f"📜 **Group Rules & Policy:**\n\n{rules}", reply_markup=get_back_button())
+
+# 💤 AFK SYSTEM
+@app.on_message(filters.command("afk"))
+async def afk_cmd(client: Client, message: Message):
+    reason = message.text.split(maxsplit=1)[1] if len(message.text.split()) > 1 else "မအားလပ်သေးပါ။"
+    AFK_USERS[message.from_user.id] = reason
+    await message.reply_text(f"💤 [{message.from_user.first_name}](tg://user?id={message.from_user.id}) သည် **AFK** သို့ ဝင်ရောက်လိုက်ပါပြီ။\n📝 အကြောင်းပြချက်: `{reason}`")
+
+# 📜 RULES SETTING
+@app.on_message(filters.command("setrules"))
+async def setrules_cmd(client: Client, message: Message):
+    if len(message.text.split()) < 2:
+        await message.reply_text("💡 အသုံးပြုပုံ: `/setrules စည်းကမ်းချက်များ ရိုက်ထည့်ပါ`")
+        return
+    rules = message.text.split(maxsplit=1)[1]
+    CHAT_SETTINGS.setdefault(message.chat.id, {})["rules"] = rules
+    await message.reply_text("✅ Group စည်းကမ်းချက်များကို သတ်မှတ်ပြီးပါပြီ။")
+
+@app.on_message(filters.command("rules"))
+async def rules_cmd(client: Client, message: Message):
+    rules = CHAT_SETTINGS.get(message.chat.id, {}).get("rules", "ဤ Group တွင် စည်းကမ်းချက်များ မသတ်မှတ်ရသေးပါဗျာ။")
+    await message.reply_text(f"📜 **Group Rules:**\n\n{rules}")
+
+# 📊 ACCURATE BOT STATS (FIXED)
+@app.on_message(filters.command("botstats"))
+async def botstats_cmd(client: Client, message: Message):
+    if not is_owner(message.from_user.id):
+        await message.reply_text("❌ ဤ Command ကို Bot ပိုင်ရှင် (Owner) သာ အသုံးပြုနိုင်ပါသည်။")
+        return
+    
+    save_known_chat(message.chat.id)
+    total_groups = len(KNOWN_CHATS)
+    memory_count = 0
+    if os.path.exists(DATA_FILE):
+        with open(DATA_FILE, "r", encoding="utf-8") as f:
+            memory_count = len([l for l in f.readlines() if l.strip()])
+            
+    stats_msg = (
+        f"📊 **Bot ၏ အချက်အလက်စာရင်း**\n\n"
+        f"🌐 **အသုံးပြုထားသော Group/Chat စုစုပေါင်း:** `{total_groups}` ခု\n"
+        f"🧠 **မှတ်ထားသော စကားလုံး/စာကြောင်းပေါင်း:** `{memory_count}` ကြောင်း"
+    )
+    await message.reply_text(stats_msg)
 
 # 📣 ADMIN MENTION COMMANDS (/admin, /admins, @admins)
 @app.on_message(filters.command(["admin", "admins"]) | filters.regex(r"(?i)^@admins?"))
@@ -244,7 +321,6 @@ async def admin_tag_cmd(client: Client, message: Message):
         return
 
     reason = message.text.split(maxsplit=1)[1] if len(message.text.split()) > 1 else "အရေးကြီး အကူအညီ လိုအပ်နေပါသည်!"
-    
     msg = await message.reply_text("🔍 Admins များကို ရှာဖွေခေါ်ယူနေပါသည်...")
     admin_mentions = []
     
@@ -315,7 +391,7 @@ async def tagall_cmd(client: Client, message: Message):
     finally:
         TAGGING_ACTIVE[chat_id] = False
 
-# 🔒 LOCK & UNLOCK SYSTEM (EXTENDED)
+# 🔒 LOCK & UNLOCK SYSTEM
 @app.on_message(filters.command("lock"))
 async def lock_cmd(client: Client, message: Message):
     args = message.text.split()
@@ -397,7 +473,7 @@ async def nightmode_cmd(client: Client, message: Message):
         ))
         await message.reply_text("☀️ **Night Mode Off:** Group ထဲတွင် စာပြန်ရိုက်ခွင့် ပြုလိုက်ပါပြီ။")
 
-# 🧮 UTILITY COMMANDS (MATH, CRYPTO, TIME, CARBON)
+# 🧮 UTILITIES & FUN HANDLERS
 @app.on_message(filters.command("math"))
 async def math_cmd(client: Client, message: Message):
     if len(message.text.split()) < 2:
@@ -414,12 +490,6 @@ async def math_cmd(client: Client, message: Message):
     except Exception as e:
         await message.reply_text(f"❌ Error: {e}")
 
-@app.on_message(filters.command("crypto"))
-async def crypto_cmd(client: Client, message: Message):
-    args = message.text.split()
-    coin = args[1].upper() if len(args) > 1 else "BTC"
-    await message.reply_text(f"🪙 **{coin}** ဈေးနှုန်း စစ်ဆေးခြင်း: လတ်တလော စနစ်ချိတ်ဆက်နေဆဲဖြစ်ပါသည်။")
-
 @app.on_message(filters.command("time"))
 async def time_cmd(client: Client, message: Message):
     now = datetime.now()
@@ -435,7 +505,6 @@ async def carbon_cmd(client: Client, message: Message):
     img_url = f"https://image.pollinations.ai/prompt/code%20snippet%20editor%20dark%20theme%20with%20text%20{encoded}"
     await message.reply_photo(photo=img_url, caption="💻 **Code Snippet Image**")
 
-# 👤 USER INFO & ADMINLIST
 @app.on_message(filters.command(["userinfo", "info"]))
 async def userinfo_cmd(client: Client, message: Message):
     user = message.reply_to_message.from_user if message.reply_to_message else message.from_user
@@ -466,20 +535,12 @@ async def roll_cmd(client: Client, message: Message):
 
 @app.on_message(filters.command("truth"))
 async def truth_cmd(client: Client, message: Message):
-    questions = [
-        "မင်းရဲ့ အကြီးမားဆုံး လျှို့ဝှက်ချက်က ဘာလဲ။",
-        "Group ထဲမှာ ဘယ်သူ့ကို အချစ်ဆုံးလဲ။",
-        "နောက်ဆုံး ငိုခဲ့ရတဲ့ အကြောင်းအရင်းက ဘာလဲ။"
-    ]
+    questions = ["မင်းရဲ့ အကြီးမားဆုံး လျှို့ဝှက်ချက်က ဘာလဲ။", "Group ထဲမှာ ဘယ်သူ့ကို အချစ်ဆုံးလဲ။", "နောက်ဆုံး ငိုခဲ့ရတဲ့ အကြောင်းအရင်းက ဘာလဲ။"]
     await message.reply_text(f"🤔 **Truth:** {random.choice(questions)}")
 
 @app.on_message(filters.command("dare"))
 async def dare_cmd(client: Client, message: Message):
-    dares = [
-        "Group ထဲမှာ စတစ်ကာ ၅ ခု ဆက်တိုက် ပို့ပါ။",
-        "မင်းရဲ့ အမိုက်ဆုံး ပုံတစ်ပုံ Group ထဲ ပို့ပါ။",
-        "စော်/ဘဲ ဆီ 'ငါမင်းကို လွမ်းတယ်' လို့ စာသွားပို့ပါ။"
-    ]
+    dares = ["Group ထဲမှာ စတစ်ကာ ၅ ခု ဆက်တိုက် ပို့ပါ။", "မင်းရဲ့ အမိုက်ဆုံး ပုံတစ်ပုံ Group ထဲ ပို့ပါ။", "စော်/ဘဲ ဆီ 'ငါမင်းကို လွမ်းတယ်' လို့ စာသွားပို့ပါ။"]
     await message.reply_text(f"🔥 **Dare:** {random.choice(dares)}")
 
 @app.on_message(filters.command("choose"))
@@ -522,7 +583,7 @@ async def welcome_setting_cmd(client: Client, message: Message):
     CHAT_SETTINGS.setdefault(message.chat.id, {})["welcome"] = status
     await message.reply_text(f"👋 Welcome Message စနစ်ကို **{'ဖွင့်လိုက်ပါပြီ (ON)' if status else 'ပိတ်လိုက်ပါပြီ (OFF)'}**")
 
-# ⏱️ TIMED MODERATION & DKICK
+# ⏱️ TIMED MODERATION & KICK
 @app.on_message(filters.command("dkick"))
 async def dkick_cmd(client: Client, message: Message):
     if not message.reply_to_message:
@@ -596,446 +657,94 @@ async def zombies_cmd(client: Client, message: Message):
     async for member in client.get_chat_members(message.chat.id):
         if member.user.is_deleted:
             deleted_count += 1
-    await msg.edit_text(f"🧟‍♂️ Group ထဲတွင် Deleted Accounts/Zombies စုစုပေါင်း **{deleted_count}** ခု ရှိနေပါသည်။")
+    await msg.edit_text(f"🧟 Group ထဲတွင် Deleted Accounts စုစုပေါင်း: **{deleted_count}** ခု ရှိနေပါသည်။")
 
 @app.on_message(filters.command("cleanzombies"))
 async def cleanzombies_cmd(client: Client, message: Message):
-    kicked_count = 0
-    msg = await message.reply_text("🧹 Deleted Accounts များကို Group မှ ရှင်းထုတ်နေပါသည်...")
+    deleted_count = 0
+    msg = await message.reply_text("🧹 Deleted Accounts များကို ထုတ်ပစ်နေပါသည်...")
     async for member in client.get_chat_members(message.chat.id):
         if member.user.is_deleted:
             try:
                 await message.chat.ban_member(member.user.id)
                 await message.chat.unban_member(member.user.id)
-                kicked_count += 1
-                await asyncio.sleep(0.5)
+                deleted_count += 1
             except Exception:
                 pass
-    await msg.edit_text(f"✅ Deleted Accounts စုစုပေါင်း **{kicked_count}** ခုအား ရှင်းထုတ်ပြီးပါပြီ။")
+    await msg.edit_text(f"✅ Deleted Accounts စုစုပေါင်း **{deleted_count}** ခုအား ထုတ်ပစ်ပြီးပါပြီ။")
 
-# 🛠️ EXTRA GROUP SETTINGS
-@app.on_message(filters.command("unpinall"))
-async def unpinall_cmd(client: Client, message: Message):
-    try:
-        await client.unpin_all_chat_messages(message.chat.id)
-        await message.reply_text("📌 Pin ထားသော စာများ အားလုံးကို ဖြုတ်လိုက်ပါပြီ။")
-    except Exception as e:
-        await message.reply_text(f"❌ Error: {e}")
+# 👋 NEW MEMBER WELCOME HANDLER
+@app.on_message(filters.new_chat_members)
+async def welcome_handler(client: Client, message: Message):
+    save_known_chat(message.chat.id)
+    chat_id = message.chat.id
+    if CHAT_SETTINGS.get(chat_id, {}).get("welcome", True):
+        for member in message.new_chat_members:
+            rules = CHAT_SETTINGS.get(chat_id, {}).get("rules", "စည်းကမ်းများ ဖတ်ရန် /rules ကို ရိုက်ပါ။")
+            await message.reply_text(f"👋 **မင်္ဂလာပါ** [{member.first_name}](tg://user?id={member.id})!\n\n{message.chat.title} မှ လှိုက်လှဲစွာ ကြိုဆိုပါတယ်။ ✨\n\n📜 **Group Rules:** {rules}")
 
-@app.on_message(filters.command("leavechat"))
-async def leavechat_cmd(client: Client, message: Message):
-    if not is_owner(message.from_user.id):
-        return
-    args = message.text.split()
-    target_chat = int(args[1]) if len(args) > 1 else message.chat.id
-    await client.leave_chat(target_chat)
+# 💬 SMART AUTO-CHAT & MEMORY LEARNING SYSTEM
+@app.on_message(filters.text & ~filters.command(["start", "help", "botstats", "tagall", "cancel", "stop", "admin", "admins", "ban", "unban", "mute", "unmute", "del", "purge", "zombies", "cleanzombies", "antilink", "setchance", "add", "clearmemory", "broadcast", "say", "leavechat", "welcome", "rules", "setrules", "lock", "unlock", "warn", "unwarn", "warns", "nightmode", "dkick", "tmute", "tban", "math", "time", "carbon", "userinfo", "info", "adminlist", "roll", "truth", "dare", "choose", "afk"]))
+async def smart_chat_handler(client: Client, message: Message):
+    save_known_chat(message.chat.id)
+    text = message.text.strip()
+    chat_id = message.chat.id
+    user_id = message.from_user.id
 
-@app.on_message(filters.command("settitle"))
-async def settitle_cmd(client: Client, message: Message):
-    if not message.reply_to_message or len(message.text.split()) < 2:
-        await message.reply_text("💡 အသုံးပြုပုံ: Admin ကို Reply ပြန်ပြီး `/settitle VIP Admin` ရိုက်ပါ။")
-        return
-    title = message.text.split(maxsplit=1)[1]
-    user_id = message.reply_to_message.from_user.id
-    try:
-        await client.set_administrator_title(message.chat.id, user_id, title)
-        await message.reply_text(f"✅ Admin ရာထူး အမည်အား **{title}** သို့ ပြောင်းလဲလိုက်ပါပြီ။")
-    except Exception as e:
-        await message.reply_text(f"❌ Error: {e}")
+    # AFK Checker
+    if message.reply_to_message and message.reply_to_message.from_user.id in AFK_USERS:
+        replied_user = message.reply_to_message.from_user
+        reason = AFK_USERS[replied_user.id]
+        await message.reply_text(f"💤 [{replied_user.first_name}](tg://user?id={replied_user.id}) သည် **AFK** ဝင်နေပါသည်\n📝 အကြောင်းပြချက်: `{reason}`")
+        
+    if user_id in AFK_USERS:
+        del AFK_USERS[user_id]
+        await message.reply_text(f"👋 [{message.from_user.first_name}](tg://user?id={user_id}) **AFK** မှ ပြန်လည်ရောက်ရှိလာပါပြီ။")
 
-@app.on_message(filters.command("setgtitle"))
-async def setgtitle_cmd(client: Client, message: Message):
-    if len(message.text.split()) < 2:
-        await message.reply_text("💡 အသုံးပြုပုံ: `/setgtitle Group အမည်သစ်`")
-        return
-    new_title = message.text.split(maxsplit=1)[1]
-    try:
-        await message.chat.set_title(new_title)
-        await message.reply_text(f"✅ Group အမည်ကို **{new_title}** သို့ ပြောင်းလိုက်ပါပြီ။")
-    except Exception as e:
-        await message.reply_text(f"❌ Error: {e}")
+    # Anti-Spam / Anti-Link Checking
+    if CHAT_SETTINGS.get(chat_id, {}).get("antilink", False):
+        if "http://" in text or "https://" in text or "t.me/" in text:
+            try:
+                await message.delete()
+                warning = await message.reply_text(f"⚠️ [{message.from_user.first_name}](tg://user?id={user_id}) Link ပို့ခွင့် ပိတ်ထားပါသည်။")
+                await asyncio.sleep(4)
+                await warning.delete()
+                return
+            except Exception:
+                pass
 
-@app.on_message(filters.command("setgdesc"))
-async def setgdesc_cmd(client: Client, message: Message):
-    if len(message.text.split()) < 2:
-        await message.reply_text("💡 အသုံးပြုပုံ: `/setgdesc Group အကြောင်းအရာ`")
-        return
-    desc = message.text.split(maxsplit=1)[1]
-    try:
-        await message.chat.set_description(desc)
-        await message.reply_text("✅ Group Description ကို ပြောင်းလဲလိုက်ပါပြီ။")
-    except Exception as e:
-        await message.reply_text(f"❌ Error: {e}")
-
-# 🎨 FUN & BANNER
-@app.on_message(filters.command("wimage"))
-async def wimage_cmd(client: Client, message: Message):
-    text = message.text.split(maxsplit=1)[1] if len(message.text.split()) > 1 else "Welcome To Our Group"
-    encoded_text = text.replace(" ", "%20")
-    img_url = f"https://image.pollinations.ai/prompt/welcome%20banner%20with%20text%20{encoded_text}%20glowing%20neon%20style"
-    await message.reply_photo(photo=img_url, caption=f"✨ **Welcome Banner:** {text}")
-
-@app.on_message(filters.command("couples"))
-async def couples_cmd(client: Client, message: Message):
-    if message.chat.type.value == "private":
-        return
-    members = []
-    async for member in client.get_chat_members(message.chat.id):
-        if not member.user.is_bot:
-            members.append(member.user)
-    if len(members) < 2:
-        await message.reply_text("Group ထဲမှာ မန်ဘာ မလုံလောက်သေးပါဗျာ။")
-        return
-    c1, c2 = random.sample(members, 2)
-    text = f"👩‍❤️‍👨 **ဒီနေ့အတွက် Group ရဲ့ စူပါ စုံတွဲ မဲပေါက်သူများ:**\n\n1️⃣ [{c1.first_name}](tg://user?id={c1.id})\n2️⃣ [{c2.first_name}](tg://user?id={c2.id})\n\n🎉 **Congratulations!**"
-    await message.reply_text(text)
-
-@app.on_message(filters.command("slap"))
-async def slap_cmd(client: Client, message: Message):
-    if not message.reply_to_message:
-        await message.reply_text("💡 စနောက်ချင်သော မန်ဘာ၏ စာကို Reply ပြန်ပါ။")
-        return
-    sender = message.from_user.first_name
-    target = message.reply_to_message.from_user.first_name
-    slap_texts = [
-        f"👋 **{sender}** က **{target}** ကို ပါးစပ်ပိတ်သွားအောင် ပါးရိုက်လိုက်ပါပြီ!",
-        f"👋 **{sender}** က **{target}** ကို ငါးခြောက်နဲ့ ပါးလွှဲရိုက်လိုက်ပါတယ်!"
-    ]
-    await message.reply_text(random.choice(slap_texts))
-
-# 🛠️ BASIC ADMIN COMMAND HANDLERS
-@app.on_message(filters.command("ban"))
-async def ban_cmd(client: Client, message: Message):
-    if not message.reply_to_message:
-        await message.reply_text("💡 Ban ချင်သည့် User ရဲ့ စာကို Reply ပြန်ပါ။")
-        return
-    try:
-        user_id = message.reply_to_message.from_user.id
-        await message.chat.ban_member(user_id)
-        await message.reply_text(f"⛔️ User `{user_id}` ကို Group မှ Ban လိုက်ပါပြီ။")
-    except Exception as e:
-        await message.reply_text(f"❌ Error: {e}")
-
-@app.on_message(filters.command("unban"))
-async def unban_cmd(client: Client, message: Message):
-    args = message.text.split()
-    if len(args) < 2 or not args[1].isdigit():
-        await message.reply_text("💡 အသုံးပြုပုံ: `/unban 12345678` (User ID ထည့်ပေးပါ)")
-        return
-    try:
-        user_id = int(args[1])
-        await message.chat.unban_member(user_id)
-        await message.reply_text(f"✅ User `{user_id}` အား Ban ဖြုတ်ပေးလိုက်ပါပြီ။")
-    except Exception as e:
-        await message.reply_text(f"❌ Error: {e}")
-
-@app.on_message(filters.command("mute"))
-async def mute_cmd(client: Client, message: Message):
-    if not message.reply_to_message:
-        await message.reply_text("💡 Mute လုပ်ချင်သည့် User ရဲ့ စာကို Reply ပြန်ပါ။")
-        return
-    try:
-        user_id = message.reply_to_message.from_user.id
-        await message.chat.restrict_member(user_id, ChatPermissions())
-        await message.reply_text(f"🔇 User `{user_id}` ၏ စာရိုက်ခွင့်ကို ပိတ်လိုက်ပါပြီ။")
-    except Exception as e:
-        await message.reply_text(f"❌ Error: {e}")
-
-@app.on_message(filters.command("unmute"))
-async def unmute_cmd(client: Client, message: Message):
-    if not message.reply_to_message:
-        await message.reply_text("💡 Unmute လုပ်ချင်သည့် User ရဲ့ စာကို Reply ပြန်ပါ။")
-        return
-    try:
-        user_id = message.reply_to_message.from_user.id
-        await message.chat.restrict_member(
-            user_id,
-            ChatPermissions(
-                can_send_messages=True,
-                can_send_media_messages=True,
-                can_send_other_messages=True,
-                can_add_web_page_previews=True
-            )
-        )
-        await message.reply_text(f"🔊 User `{user_id}` အား စာပြန်ရိုက်ခွင့် ပေးလိုက်ပါပြီ။")
-    except Exception as e:
-        await message.reply_text(f"❌ Error: {e}")
-
-@app.on_message(filters.command("kick"))
-async def kick_cmd(client: Client, message: Message):
-    if not message.reply_to_message:
-        await message.reply_text("💡 Group မှ ထုတ်ချင်သည့် User ရဲ့ စာကို Reply ပြန်ပါ။")
-        return
-    try:
-        user_id = message.reply_to_message.from_user.id
-        await message.chat.ban_member(user_id)
-        await message.chat.unban_member(user_id)
-        await message.reply_text(f"👞 User `{user_id}` ကို Group မှ ထုတ်ပစ်လိုက်ပါပြီ။")
-    except Exception as e:
-        await message.reply_text(f"❌ Error: {e}")
-
-@app.on_message(filters.command("gen"))
-async def gen_cmd(client: Client, message: Message):
-    if len(message.text.split()) < 2:
-        await message.reply_text("💡 အသုံးပြုပုံ: `/gen a cat wearing sunglasses`")
-        return
-    prompt = message.text.split(maxsplit=1)[1]
-    msg = await message.reply_text("🎨 AI မှ ပုံဖန်တီးပေးနေပါသည်...")
-    try:
-        encoded_prompt = prompt.replace(" ", "%20")
-        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}"
-        await message.reply_photo(photo=image_url, caption=f"✨ **Prompt:** `{prompt}`")
-        await msg.delete()
-    except Exception as e:
-        await msg.edit_text(f"❌ Error: {e}")
-
-# 🎲 GAMES HANDLERS
-@app.on_message(filters.command("dice"))
-async def dice_cmd(client: Client, message: Message):
-    await client.send_dice(message.chat.id, emoji="🎲")
-
-@app.on_message(filters.command("dart"))
-async def dart_cmd(client: Client, message: Message):
-    await client.send_dice(message.chat.id, emoji="🎯")
-
-@app.on_message(filters.command("basket"))
-async def basket_cmd(client: Client, message: Message):
-    await client.send_dice(message.chat.id, emoji="🏀")
-
-@app.on_message(filters.command("bowling"))
-async def bowling_cmd(client: Client, message: Message):
-    await client.send_dice(message.chat.id, emoji="🎳")
-
-@app.on_message(filters.command("football"))
-async def football_cmd(client: Client, message: Message):
-    await client.send_dice(message.chat.id, emoji="⚽")
-
-@app.on_message(filters.command("slot"))
-async def slot_cmd(client: Client, message: Message):
-    await client.send_dice(message.chat.id, emoji="🎰")
-
-# 🎈 UTILITIES
-@app.on_message(filters.command("ping"))
-async def ping_cmd(client: Client, message: Message):
-    start_time = time.time()
-    msg = await message.reply_text("🏓 Pong!")
-    end_time = time.time()
-    ms = round((end_time - start_time) * 1000, 2)
-    await msg.edit_text(f"🏓 **Pong!**\n⚡️ Speed: `{ms} ms`")
-
-@app.on_message(filters.command("id"))
-async def id_cmd(client: Client, message: Message):
-    if message.reply_to_message:
-        target = message.reply_to_message.from_user
-        await message.reply_text(f"👤 **Name:** {target.first_name}\n🆔 **User ID:** `{target.id}`")
-    else:
-        await message.reply_text(f"💬 **Group ID:** `{message.chat.id}`\n👤 **Your ID:** `{message.from_user.id}`")
-
-@app.on_message(filters.command("broadcast"))
-async def broadcast_cmd(client: Client, message: Message):
-    if not is_owner(message.from_user.id):
-        await message.reply_text("❌ ဤ Command ကို Bot ပိုင်ရှင် (Owner) သာ အသုံးပြုနိုင်ပါသည်။")
-        return
-    if len(message.text.split()) < 2:
-        await message.reply_text("💡 အသုံးပြုပုံ: `/broadcast သတင်းလွှာ စာသား`")
-        return
-    msg_to_send = message.text.split(maxsplit=1)[1]
-    count = 0
-    await message.reply_text("📢 Group အားလုံးသို့ ကြေညာစာများ ပို့ဆောင်နေပါသည်...")
-    for chat_id in list(KNOWN_CHATS):
+    # Banned Words Check
+    if any(b_word in text.lower() for b_word in BANNED_WORDS):
         try:
-            await client.send_message(chat_id, f"📢 **ကြေညာချက်:**\n\n{msg_to_send}")
-            count += 1
-            await asyncio.sleep(0.5)
+            await message.delete()
+            return
         except Exception:
             pass
-    await message.reply_text(f"✅ စုစုပေါင်း Group/Chat **{count}** ခုသို့ ကြေညာစာ ပို့ပြီးပါပြီ။")
 
-@app.on_message(filters.command("botstats"))
-async def botstats_cmd(client: Client, message: Message):
-    if not is_owner(message.from_user.id):
-        await message.reply_text("❌ ဤ Command ကို Bot ပိုင်ရှင် (Owner) သာ အသုံးပြုနိုင်ပါသည်။")
-        return
-    total_groups = len(KNOWN_CHATS)
-    memory_count = 0
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "r", encoding="utf-8") as f:
-            memory_count = len(f.readlines())
-    stats_msg = (
-        f"📊 **Bot ၏ အချက်အလက်စာရင်း**\n\n"
-        f"🌐 **အသုံးပြုထားသော Group/Chat စုစုပေါင်း:** `{total_groups}` ခု\n"
-        f"🧠 **မှတ်ထားသော စကားလုံး/စာကြောင်းပေါင်း:** `{memory_count}` ကြောင်း"
-    )
-    await message.reply_text(stats_msg)
+    save_text(text)
 
-@app.on_message(filters.command("add"))
-async def add_cmd(client: Client, message: Message):
-    if not is_owner(message.from_user.id):
-        await message.reply_text("❌ ဤ Command ကို Bot ပိုင်ရှင် (Owner) သာ အသုံးပြုနိုင်ပါသည်။")
-        return
-    if len(message.text.split()) < 2:
-        await message.reply_text("💡 အသုံးပြုပုံ: `/add မင်္ဂလာပါဗျာ`")
-        return
-    text_to_add = message.text.split(maxsplit=1)[1]
-    save_text(text_to_add)
-    await message.reply_text(f"✅ စကားလုံး မှတ်ယူလိုက်ပါပြီ: \"{text_to_add}\"")
+    is_mentioned = False
+    if message.reply_to_message and message.reply_to_message.from_user:
+        if message.reply_to_message.from_user.id == (await client.get_me()).id:
+            is_mentioned = True
 
-@app.on_message(filters.command("setchance"))
-async def setchance_cmd(client: Client, message: Message):
-    if not is_owner(message.from_user.id):
-        await message.reply_text("❌ ဤ Command ကို Bot ပိုင်ရှင် (Owner) သာ အသုံးပြုနိုင်ပါသည်။")
-        return
-    args = message.text.split()
-    if len(args) < 2 or not args[1].isdigit():
-        await message.reply_text("💡 အသုံးပြုပုံ: `/setchance 50` (0 မှ 100 အထိ)")
-        return
-    chance = int(args[1])
-    if 0 <= chance <= 100:
-        CHAT_SETTINGS.setdefault(message.chat.id, {})["chance"] = chance
-        await message.reply_text(f"🎯 Bot အလိုအလျောက် ဝင်ပြောမည့် နှုန်းကို {chance}% သို့ ပြောင်းလိုက်ပါပြီ။")
+    bot_obj = await client.get_me()
+    if bot_obj.username and f"@{bot_obj.username.lower()}" in text.lower():
+        is_mentioned = True
 
-@app.on_message(filters.command("clearmemory"))
-async def clearmemory_cmd(client: Client, message: Message):
-    if not is_owner(message.from_user.id):
-        await message.reply_text("❌ ဤ Command ကို Bot ပိုင်ရှင် (Owner) သာ အသုံးပြုနိုင်ပါသည်။")
-        return
-    if os.path.exists(DATA_FILE):
-        os.remove(DATA_FILE)
-        await message.reply_text("🗑️ မှတ်ထားသော စကားလုံး အားလုံးကို ရှင်းထုတ်ပြီးပါပြီ။")
-    else:
-        await message.reply_text("မှတ်တမ်းဖိုင် မရှိသေးပါဗျာ။")
+    chance = CHAT_SETTINGS.get(chat_id, {}).get("chance", 30)
 
-@app.on_message(filters.command("pin"))
-async def pin_cmd(client: Client, message: Message):
-    if not message.reply_to_message:
-        await message.reply_text("💡 Pin ချင်တဲ့ စာကို Reply ပြန်ပြီး `/pin` လို့ ရိုက်ပါ။")
-        return
-    try:
-        await message.reply_to_message.pin()
-        await message.reply_text("📌 စာကို Pin လိုက်ပါပြီ။")
-    except Exception as e:
-        await message.reply_text(f"❌ Error: {e}")
+    if is_mentioned or (random.randint(1, 100) <= chance):
+        await client.send_chat_action(chat_id, "typing")
+        await asyncio.sleep(0.5)
+        reply = generate_smart_reply(text)
+        await message.reply_text(reply)
 
-@app.on_message(filters.command("unpin"))
-async def unpin_cmd(client: Client, message: Message):
-    try:
-        await client.unpin_chat_message(message.chat.id)
-        await message.reply_text("📌 Pin ထားသည်ကို ပြန်ဖြုတ်လိုက်ပါပြီ။")
-    except Exception as e:
-        await message.reply_text(f"❌ Error: {e}")
-
-@app.on_message(filters.command("del"))
-async def del_cmd(client: Client, message: Message):
-    if not message.reply_to_message:
-        await message.reply_text("💡 ဖျက်ချင်သည့် စာကို Reply ပြန်ပြီး `/del` လို့ ရိုက်ပါ။")
-        return
-    try:
-        await message.reply_to_message.delete()
-        await message.delete()
-    except Exception as e:
-        await message.reply_text(f"❌ Error: {e}")
-
-@app.on_message(filters.command("groupinfo"))
-async def groupinfo_cmd(client: Client, message: Message):
-    if message.chat.type.value == "private":
-        await message.reply_text("ဒီ Command က Group ထဲမှာပဲ သုံးလို့ရပါတယ်။")
-        return
-    chat = message.chat
-    info = (
-        f"🏰 **Group အချက်အလက်**\n\n"
-        f"• **အမည်:** {chat.title}\n"
-        f"• **Group ID:** `{chat.id}`\n"
-        f"• **Type:** {chat.type.value.capitalize()}\n"
-        f"• **Members Count:** {await client.get_chat_members_count(chat.id)}"
-    )
-    await message.reply_text(info)
-
-# 🔔 NEW MEMBER WELCOME LISTENER
-@app.on_message(filters.new_chat_members)
-async def welcome_listener(client: Client, message: Message):
-    settings = CHAT_SETTINGS.get(message.chat.id, {})
-    if settings.get("welcome", True):
-        for member in message.new_chat_members:
-            wel_text = f"👋 **မင်္ဂလာပါ [{member.first_name}](tg://user?id={member.id})!**\n\n{message.chat.title} Group မှ နွေးထွေးစွာ ကြိုဆိုပါတယ်။ ✨"
-            await message.reply_text(wel_text)
-
-# ⭐️ AUTO CHAT, LOCKS & ANTI-LINK LISTENER
-ALL_COMMANDS = [
-    "start", "help", "ping", "id", "tagall", "broadcast", "botstats", 
-    "add", "setchance", "clearmemory", "pin", "unpin", "del", "groupinfo",
-    "ban", "unban", "mute", "unmute", "kick", "gen", "tmute", "tban",
-    "purge", "zombies", "cleanzombies", "admin", "admins", "antilink", "welcome",
-    "settitle", "setgtitle", "setgdesc", "wimage", "couples", "slap",
-    "dice", "dart", "basket", "bowling", "football", "cancel", "stop",
-    "lock", "unlock", "warn", "unwarn", "warns", "userinfo", "info",
-    "roll", "truth", "dare", "choose", "say", "nightmode", "math",
-    "crypto", "time", "carbon", "slot", "adminlist", "dkick", "unpinall", "leavechat"
-]
-
-@app.on_message(~filters.command(ALL_COMMANDS))
-async def handle_messages(client: Client, message: Message):
-    if not message.chat:
-        return
-
-    KNOWN_CHATS.add(message.chat.id)
-
-    me = await client.get_me()
-    if message.from_user and message.from_user.id == me.id:
-        return
-
-    chat_settings = CHAT_SETTINGS.get(message.chat.id, {})
-
-    # Check Locks
-    if message.sticker and chat_settings.get("lock_sticker", False):
-        await message.delete()
-        return
-    if message.photo and chat_settings.get("lock_photo", False):
-        await message.delete()
-        return
-    if message.video and chat_settings.get("lock_video", False):
-        await message.delete()
-        return
-    if message.audio and chat_settings.get("lock_audio", False):
-        await message.delete()
-        return
-    if message.voice and chat_settings.get("lock_voice", False):
-        await message.delete()
-        return
-    if message.document and chat_settings.get("lock_document", False):
-        await message.delete()
-        return
-    if message.forward_date and chat_settings.get("lock_forward", False):
-        await message.delete()
-        return
-
-    # Anti-Link Check
-    if message.text:
-        if chat_settings.get("antilink", False) or chat_settings.get("lock_link", False):
-            if "http://" in message.text or "https://" in message.text or "t.me/" in message.text:
-                try:
-                    await message.delete()
-                    warning = await message.reply_text(f"⚠️ [{message.from_user.first_name}](tg://user?id={message.from_user.id}) Group ထဲတွင် Link ပို့ခွင့်မပြုပါ။")
-                    await asyncio.sleep(4)
-                    await warning.delete()
-                    return
-                except Exception:
-                    pass
-
-        save_text(message.text)
-        
-        chat_id = message.chat.id
-        auto_chance = chat_settings.get("chance", 100)
-
-        if auto_chance > 0 and random.randint(1, 100) <= auto_chance:
-            reply = generate_smart_reply(message.text)
-            await message.reply_text(reply)
-
-# 🚀 MAIN RUNNER
+# 🏁 BOT STARTUP ENTRY POINT
 async def main():
     await start_web_server()
-    print("Web Server စတင်ပါပြီ...")
     await app.start()
-    print("Bot စတင်နေပါပြီ...")
+    print("🚀 Bot is Online & Web Server is Running!")
     await asyncio.Event().wait()
 
 if __name__ == "__main__":
