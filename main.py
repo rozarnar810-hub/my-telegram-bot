@@ -4,11 +4,14 @@ from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 from google import genai
 
+# Logging သတ်မှတ်ခြင်း
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
+# Environment Variables မှ Token များနှင့် Key များကို ဖတ်ယူခြင်း
 TELEGRAM_TOKEN = os.getenv("BOT_TOKEN")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
+# Gemini Client ကို စတင်ပြင်ဆင်ခြင်း
 client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -21,12 +24,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Error: GEMINI_API_KEY ထည့်သွင်းထားခြင်း မရှိသေးပါ။")
         return
 
+    # Typing status ပြသပေးခြင်း
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
 
     try:
-        # Model နာမည်ကို gemini-1.5-flash သို့ ပြောင်းလဲထားပါသည်
+        # မော်ဒယ် နာမည်ကို gemini-2.0-flash သို့ အမှန်တကယ့် အတည်ပြုပြင်ဆင်ထားသည်
         response = client.models.generate_content(
-            model='gemini-1.5-flash',
+            model='gemini-2.0-flash',
             contents=user_text,
         )
         await update.message.reply_text(response.text)
@@ -40,6 +44,8 @@ def main():
         return
 
     app = Application.builder().token(TELEGRAM_TOKEN).build()
+
+    # Handlers များ ထည့်သွင်းခြင်း
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
