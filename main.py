@@ -7,7 +7,6 @@ import markovify
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
-# Logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 TELEGRAM_TOKEN = os.getenv("BOT_TOKEN")
@@ -15,23 +14,18 @@ DATA_FILE = "chat_memory.txt"
 CHAT_SETTINGS = {}
 KNOWN_CHATS = set()
 
-# Render Web Service အတွက် Port Respond အမှန်တကယ် ပေးမည့် Server
+# Web Server အတွက် Port Check
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
-        self.send_header('Content-type', 'text/html')
         self.end_headers()
-        self.wfile.write(b"Bot is running smoothly!")
-
-    def log_message(self, format, *args):
-        return  # Log တွေ အများကြီး မတက်အောင် ပိတ်ထားခြင်း
+        self.wfile.write(b"Bot Active")
 
 def run_health_check_server():
     port = int(os.environ.get("PORT", 8080))
     server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
     server.serve_forever()
 
-# Admin စစ်ဆေးခြင်း
 async def is_admin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
     if update.effective_chat.type == "private":
         return True
@@ -72,24 +66,35 @@ def generate_ai_reply() -> str:
 # COMMANDS
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     KNOWN_CHATS.add(update.effective_chat.id)
-    await update.message.reply_text("မင်္ဂလာပါ။ AI Auto-Reply, Mentions & Broadcast စနစ်များပါဝင်သော Telegram Bot ဖြစ်ပါတယ်။ /help ကို နှိပ်ပြီး အသုံးပြုနည်း ကြည့်နိုင်ပါတယ်။")
+    await update.message.reply_text("မင်္ဂလာပါ။ AI Auto-Reply Bot ဖြစ်ပါတယ်။ /help ကို နှိပ်ပြီး Command များ ကြည့်နိုင်ပါတယ်။")
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = (
-        "🤖 **Bot အသုံးပြုနိုင်သော Command များ**\n\n"
-        "💬 **အထွေထွေ Command များ:**\n"
+        "🤖 *Bot အသုံးပြုနိုင်သော Command များ*\n\n"
+        "💬 *အထွေထွေ Command များ:*\n"
         "• /start - Bot စတင်ရန်\n"
         "• /help - Command များ ကြည့်ရန်\n"
         "• /stats - မှတ်ထားသော စကားလုံး အရေအတွက်ကြည့်ရန်\n"
         "• /add [စာသား] - Bot ကို စကားလုံး တိုက်ရိုက် သင်ပေးရန်\n\n"
-        "📢 **Group Admin & Management:**\n"
-        "• /tagall [စာသား] - Member များကို Mention ခေါ်ရန်\n"
+        "📢 *Group Admin & Management:*\n"
+        "• /tagall [စာသား] - Member များကို Tag ခေါ်ရန်\n"
         "• /setchance [0-100] - Bot Auto ဝင်ပြောမည့် % သတ်မှတ်ရန်\n"
         "• /boton / /botoff - Bot စကားပြောစနစ် ပိတ်/ဖွင့် ရန်\n"
         "• /broadcast [စာသား] - ကြေညာချက် ပို့ရန် (Admin Only)\n"
         "• /resetmemory - Memory ဖျက်ရန်"
     )
     await update.message.reply_text(help_text, parse_mode="Markdown")
+
+async def tagall_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await is_admin(update, context):
+        await update.message.reply_text("❌ Admin သာလျှင် Member များကို Tag ခေါ်နိုင်ပါတယ်။")
+        return
+    
+    notice = " ".join(context.args) if context.args else "လူစုံတက်စုံ သတိပေးချက်!"
+    
+    # Text Formatting မှန်အောင် ပြင်ဆင်ထားခြင်း
+    reply_text = f"📣 *{notice}*\n\n🔔 @all @everyone"
+    await update.message.reply_text(reply_text, parse_mode="Markdown")
 
 async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update, context):
@@ -103,19 +108,11 @@ async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     count = 0
     for chat_id in KNOWN_CHATS:
         try:
-            await context.bot.send_message(chat_id=chat_id, text=f"📢 **ကြေညာချက်:**\n\n{msg}", parse_mode="Markdown")
+            await context.bot.send_message(chat_id=chat_id, text=f"📢 *ကြေညာချက်:*\n\n{msg}", parse_mode="Markdown")
             count += 1
         except Exception:
             pass
     await update.message.reply_text(f"✅ Chat ပေါင်း {count} ခုသို့ စာကြေညာချက် ပို့ပြီးပါပြီ။")
-
-async def tagall_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await is_admin(update, context):
-        await update.message.reply_text("❌ Admin သာလျှင် Member များကို Tag ခေါ်နိုင်ပါတယ်။")
-        return
-    
-    notice = " ".join(context.args) if context.args else "လူစုံတက်စုံ သတိပေးချက်!"
-    await update.message.reply_text(f"📣 **{notice}**\n\n@all @everyone")
 
 async def add_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
@@ -204,7 +201,6 @@ def main():
         print("Error: BOT_TOKEN လိုအပ်နေပါသည်။")
         return
 
-    # Render Port ပွင့်မထားလို့ တက်တဲ့ Timed Out ကို ဖြေရှင်းရန် Web Server စတင်ခြင်း
     threading.Thread(target=run_health_check_server, daemon=True).start()
 
     app = Application.builder().token(TELEGRAM_TOKEN).build()
@@ -215,7 +211,6 @@ def main():
     app.add_handler(CommandHandler("add", add_command))
     app.add_handler(CommandHandler("broadcast", broadcast_command))
     app.add_handler(CommandHandler("tagall", tagall_command))
-    app.add_handler(CommandHandler("mention", tagall_command))
     app.add_handler(CommandHandler("setchance", setchance_command))
     app.add_handler(CommandHandler("boton", toggle_bot_command))
     app.add_handler(CommandHandler("botoff", toggle_bot_command))
@@ -223,7 +218,7 @@ def main():
 
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    print("Markov Learning Bot စတင်နေပါပြီ...")
+    print("Bot စတင်နေပါပြီ...")
     app.run_polling()
 
 if __name__ == '__main__':
