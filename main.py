@@ -24,15 +24,15 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
 
     try:
-        # မော်ဒယ် နာမည် ပြင်ဆင်ထားသည်
+        # Model နာမည်ကို gemini-1.5-flash သို့ ပြောင်းလဲထားပါသည်
         response = client.models.generate_content(
-            model='gemini-2.5-flash',
+            model='gemini-1.5-flash',
             contents=user_text,
         )
         await update.message.reply_text(response.text)
     except Exception as e:
         logging.error(f"Gemini API Error: {e}")
-        await update.message.reply_text(f"API Error ဖြစ်နေပါသည်: {e}")
+        await update.message.reply_text("တောင်းပန်ပါတယ်၊ စာပြန်စဉ် အမှားတစ်ခု ဖြစ်ပေါ်သွားပါသည်။")
 
 def main():
     if not TELEGRAM_TOKEN:
