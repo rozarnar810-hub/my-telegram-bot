@@ -1,22 +1,13 @@
 import os
-import logging
+import asyncio
 import random
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import markovify
-from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from pyrogram import Client, filters
+from pyrogram.types import Message
 
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
-
-TELEGRAM_TOKEN = os.getenv("BOT_TOKEN")
-DATA_FILE = "chat_memory.txt"
-CHAT_SETTINGS = {}
-KNOWN_CHATS = set()
-
-# မန်ဘာများ၏ ID နှင့် နာမည်များကို မှတ်ထားမည့် Database (In-Memory)
-GROUP_MEMBERS = {}
-
+# Render မအိပ်စေရန် Web Server
 class HealthCheckHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
@@ -28,13 +19,17 @@ def run_health_check_server():
     server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
     server.serve_forever()
 
-async def is_admin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
-    if update.effective_chat.type == "private":
-        return True
-    user_id = update.effective_user.id
-    chat_id = update.effective_chat.id
-    member = await context.bot.get_chat_member(chat_id, user_id)
-    return member.status in ["creator", "administrator"]
+threading.Thread(target=run_health_check_server, daemon=True).start()
+
+# 🔑 သင့် Screenshot ထဲမှ API credentials များ
+API_ID = 31788996
+API_HASH = "0c6714a879b2b1abba75dc4526521ca8"
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+
+DATA_FILE = "chat_memory.txt"
+CHAT_SETTINGS = {}
+
+app = Client("my_tag_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
 def save_text(text: str):
     if len(text.split()) >= 1 and not text.startswith("/"):
@@ -44,209 +39,104 @@ def save_text(text: str):
 def generate_ai_reply() -> str:
     if not os.path.exists(DATA_FILE):
         return "ကျွန်တော် စကားလုံးတွေ မှတ်နေတုန်းပါပဲ၊ Group ထဲမှာ စကားများများ ပြောပေးကြပါ။"
-
     try:
         with open(DATA_FILE, "r", encoding="utf-8") as f:
             text_data = f.read()
-
         if len(text_data.strip()) == 0:
             return "စကားလုံး အချက်အလက် မရှိသေးပါဗျာ။"
 
         text_model = markovify.NewlineText(text_data, state_size=1)
         reply = text_model.make_sentence(tries=100)
+        return reply if reply else random.choice(text_data.strip().split("\n"))
+    except Exception:
+        return "စကားပြန်ပြောဖို့ အချက်အလက် မရှိသေးပါဗျာ။"
 
-        if reply:
-            return reply
-        else:
-            lines = text_data.strip().split("\n")
-            return random.choice(lines)
-            
-    except Exception as e:
-        logging.error(f"Error generating reply: {e}")
-        return "စကားပြန်ပြောဖို့ အချက်အလက် နည်းနေသေးလို့ပါဗျာ။"
+async def is_admin(client: Client, chat_id: int, user_id: int) -> bool:
+    try:
+        member = await client.get_chat_member(chat_id, user_id)
+        return member.status.value in ["owner", "administrator"]
+    except Exception:
+        return False
 
-# COMMANDS
-async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    KNOWN_CHATS.add(update.effective_chat.id)
-    await update.message.reply_text("မင်္ဂလာပါ။ AI Auto-Reply & Tag Bot ဖြစ်ပါတယ်။ /help ကို နှိပ်ပြီး Command များ ကြည့်နိုင်ပါတယ်။")
+@app.on_message(filters.command("start"))
+async def start_cmd(client: Client, message: Message):
+    await message.reply_text("မင်္ဂလာပါ။ Group Member အားလုံးကို အလိုအလျောက် စစ်ဆေးပြီး Tag ခေါ်ပေးနိုင်သော AI Bot ဖြစ်ပါတယ်ဗျာ။ /help ကို နှိပ်ပါ၊")
 
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+@app.on_message(filters.command("help"))
+async def help_cmd(client: Client, message: Message):
     help_text = (
-        "🤖 *Bot အသုံးပြုနိုင်သော Command များ*\n\n"
-        "💬 *အထွေထွေ Command များ:*\n"
-        "• /start - Bot စတင်ရန်\n"
-        "• /help - Command များ ကြည့်ရန်\n"
-        "• /stats - မှတ်ထားသော စကားလုံး အရေအတွက်ကြည့်ရန်\n"
-        "• /add [စာသား] - Bot ကို စကားလုံး တိုက်ရိုက် သင်ပေးရန်\n\n"
-        "📢 *Group Admin & Management:*\n"
-        "• /tagall [စာသား] - Member အားလုံးကို တကယ် Notification ဝင်အောင် Tag ခေါ်ရန်\n"
-        "• /setchance [0-100] - Bot Auto ဝင်ပြောမည့် % သတ်မှတ်ရန်\n"
-        "• /boton / /botoff - Bot စကားပြောစနစ် ပိတ်/ဖွင့် ရန်\n"
-        "• /broadcast [စာသား] - ကြေညာချက် ပို့ရန် (Admin Only)\n"
-        "• /resetmemory - Memory ဖျက်ရန်"
+        "🤖 **Bot အသုံးပြုနိုင်သော Command များ**\n\n"
+        "📢 **Tag စနစ်:**\n"
+        "• `/tagall [စာသား]` - Group ထဲရှိ မန်ဘာ အားလုံးကို အလိုအလျောက် စစ်ဆေးပြီး Mention ခေါ်ရန်\n\n"
+        "💬 **AI & Group Management:**\n"
+        "• `/setchance [0-100]` - Auto ပြောမည့် နှုန်းသတ်မှတ်ရန်\n"
+        "• `/boton` / `/botoff` - Bot ပိတ်/ဖွင့်ရန်"
     )
-    await update.message.reply_text(help_text, parse_mode="Markdown")
+    await message.reply_text(help_text)
 
-# Barker Tag Bot ကဲ့သို့ မန်ဘာများကို ၅ ယောက်တစ်စု တကယ် Notification ဝင်အောင် Tag ခေါ်သည့် စနစ်
-async def tagall_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await is_admin(update, context):
-        await update.message.reply_text("❌ Admin သာလျှင် Member များကို Tag ခေါ်နိုင်ပါတယ်။")
-        return
-    
-    chat_id = update.effective_chat.id
-    notice = " ".join(context.args) if context.args else "လူစုံတက်စုံ သတိပေးချက်!"
-    
-    members = GROUP_MEMBERS.get(chat_id, {})
-    if not members:
-        await update.message.reply_text("⚠️ Tag ခေါ်ရန် မန်ဘာ စာရင်း မရှိသေးပါ။ မန်ဘာများ Group ထဲတွင် စာတစ်ကြောင်းစီ စကားပြောထားပေးဖို့ လိုအပ်ပါတယ်ဗျာ။")
+# ⭐️ မန်ဘာ ဘယ်လောက်ရှိရှိ အရင် Auto စစ်ဆေးပြီး Tag ခေါ်ပေးသည့် စနစ်
+@app.on_message(filters.command("tagall"))
+async def tagall_cmd(client: Client, message: Message):
+    if message.chat.type.value == "private":
+        await message.reply_text("ဒီ Command ကို Group ထဲမှာသာ အသုံးပြုနိုင်ပါတယ်ဗျာ။")
         return
 
-    member_items = list(members.items())
-    chunk_size = 5  # တစ်ခါ ပို့ရင် ၅ ယောက်စီ ခွဲပြီး ပို့မည်
-    
-    await update.message.reply_text(f"📣 *{notice}*\n\nTag ခေါ်ခြင်း စတင်နေပါပြီ...", parse_mode="Markdown")
-
-    for i in range(0, len(member_items), chunk_size):
-        chunk = member_items[i:i + chunk_size]
-        mention_text = ""
-        for user_id, name in chunk:
-            # တကယ် Notification ဝင်စေသည့် Text Mention Link
-            mention_text += f"[{name}](tg://user?id={user_id})  "
-
-        try:
-            await context.bot.send_message(chat_id=chat_id, text=mention_text, parse_mode="Markdown")
-        except Exception:
-            pass
-
-async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await is_admin(update, context):
-        await update.message.reply_text("❌ ဒီ Command ကို Admin သာ အသုံးပြုနိုင်ပါတယ်။")
-        return
-    if not context.args:
-        await update.message.reply_text("💡 အသုံးပြုပုံ: `/broadcast သတင်းလွှာ စာသား`", parse_mode="Markdown")
+    if not await is_admin(client, message.chat.id, message.from_user.id):
+        await message.reply_text("❌ Admin သာလျှင် Member များကို Tag ခေါ်နိုင်ပါတယ်။")
         return
 
-    msg = " ".join(context.args)
-    count = 0
-    for chat_id in KNOWN_CHATS:
-        try:
-            await context.bot.send_message(chat_id=chat_id, text=f"📢 *ကြေညာချက်:*\n\n{msg}", parse_mode="Markdown")
-            count += 1
-        except Exception:
-            pass
-    await update.message.reply_text(f"✅ Chat ပေါင်း {count} ခုသို့ စာကြေညာချက် ပို့ပြီးပါပြီ။")
+    notice = message.text.split(maxsplit=1)[1] if len(message.text.split()) > 1 else "လူစုံတက်စုံ သတိပေးချက်!"
+    status_msg = await message.reply_text("🔍 Group ထဲရှိ မန်ဘာ အားလုံးကို စစ်ဆေးနေပါသည်...")
 
-async def add_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not context.args:
-        await update.message.reply_text("💡 အသုံးပြုပုံ: `/add မင်္ဂလာပါဗျာ`", parse_mode="Markdown")
+    try:
+        # Group ထဲရှိ မန်ဘာ အားလုံးကို Direct Fetch ဆွဲယူခြင်း
+        members = []
+        async for member in client.get_chat_members(message.chat.id):
+            if not member.user.is_bot and not member.user.is_deleted:
+                members.append(member.user)
+
+        total_count = len(members)
+        await status_msg.edit_text(f"📣 **{notice}**\n\n👥 စုစုပေါင်း မန်ဘာ **{total_count}** ယောက်အား Tag ခေါ်နေပါပြီ...")
+
+        # ၅ ယောက်တစ်စု ခွဲပြီး Mention Link တကယ်ဝင်အောင် ပို့ပေးခြင်း
+        chunk_size = 5
+        for i in range(0, total_count, chunk_size):
+            chunk = members[i:i + chunk_size]
+            mention_text = ""
+            for user in chunk:
+                name = user.first_name if user.first_name else "User"
+                mention_text += f"[{name}](tg://user?id={user.id})  "
+
+            await client.send_message(message.chat.id, mention_text)
+            await asyncio.sleep(1.5)  # Telegram Limits မထိစေရန်
+
+    except Exception as e:
+        await message.reply_text(f"❌ အမှားဖြစ်ပေါ်ပါသည်: {e}")
+
+@app.on_message(filters.text & ~filters.command(["start", "help", "tagall", "setchance", "boton", "botoff"]))
+async def handle_messages(client: Client, message: Message):
+    if message.chat.type.value == "private":
+        reply = generate_ai_reply()
+        await message.reply_text(reply)
         return
-    text_to_add = " ".join(context.args)
-    save_text(text_to_add)
-    await update.message.reply_text(f"✅ စကားလုံး မှတ်ယူလိုက်ပါပြီ: \"{text_to_add}\"")
 
-async def setchance_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await is_admin(update, context):
-        await update.message.reply_text("❌ Admin သာလျှင် Chance သတ်မှတ်ပိုင်ခွင့် ရှိပါတယ်။")
-        return
-    chat_id = update.effective_chat.id
-    if not context.args or not context.args[0].isdigit():
-        await update.message.reply_text("💡 အသုံးပြုပုံ: `/setchance 20` (0 မှ 100 အထိ)", parse_mode="Markdown")
-        return
-    chance = int(context.args[0])
-    if 0 <= chance <= 100:
-        CHAT_SETTINGS.setdefault(chat_id, {})["chance"] = chance
-        await update.message.reply_text(f"🎯 Bot အလိုအလျောက် ဝင်ပြောမည့် နှုန်းကို {chance}% သို့ ပြောင်းလိုက်ပါပြီ။")
-    else:
-        await update.message.reply_text("0 မှ 100 အကြား ကိန်းဂဏန်းသာ ထည့်ပါ။")
-
-async def toggle_bot_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await is_admin(update, context):
-        await update.message.reply_text("❌ Admin သာလျှင် ပိတ်/ဖွင့် ပြုလုပ်နိုင်ပါတယ်။")
-        return
-    chat_id = update.effective_chat.id
-    command = update.message.text.split()[0].lower()
-    
-    if "boton" in command:
-        CHAT_SETTINGS.setdefault(chat_id, {})["enabled"] = True
-        await update.message.reply_text("✅ Bot စကားပြောစနစ်ကို ဖွင့်လိုက်ပါပြီ။")
-    else:
-        CHAT_SETTINGS.setdefault(chat_id, {})["enabled"] = False
-        await update.message.reply_text("❌ Bot စကားပြောစနစ်ကို ပိတ်လိုက်ပါပြီ။")
-
-async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE, "r", encoding="utf-8") as f:
-            lines = f.readlines()
-        await update.message.reply_text(f"📊 လက်ရှိ Bot မှတ်ထားသော စာကြောင်းပေါင်း: {len(lines)} ကြောင်း ရှိပါပြီ။")
-    else:
-        await update.message.reply_text("📊 လက်ရှိတွင် မှတ်ထားသော စကားလုံး မရှိသေးပါ။")
-
-async def resetmemory_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await is_admin(update, context):
-        await update.message.reply_text("❌ Admin သာလျှင် Memory ဖျက်ပိုင်ခွင့် ရှိပါတယ်။")
-        return
-    if os.path.exists(DATA_FILE):
-        os.remove(DATA_FILE)
-        await update.message.reply_text("🗑️ မှတ်ထားသော စကားလုံးများ အားလုံးကို ဖျက်လိုက်ပါပြီ။")
-    else:
-        await update.message.reply_text("ဖျက်စရာ အချက်အလက် မရှိပါ။")
-
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id
-    user = update.effective_user
-    KNOWN_CHATS.add(chat_id)
-
-    # မန်ဘာများ စာရိုက်လိုက်သည်နှင့် ID/Name ကို သိမ်းဆည်းခြင်း
-    if user and not user.is_bot:
-        GROUP_MEMBERS.setdefault(chat_id, {})[user.id] = user.first_name
-    
+    save_text(message.text)
+    chat_id = message.chat.id
     settings = CHAT_SETTINGS.get(chat_id, {"enabled": True, "chance": 0})
+    
     if not settings.get("enabled", True):
         return
 
-    user_text = update.message.text
-    save_text(user_text)
-
-    bot_username = context.bot.username
-    is_mentioned = bot_username and f"@{bot_username}" in user_text
-    is_reply_to_bot = (
-        update.message.reply_to_message and 
-        update.message.reply_to_message.from_user.id == context.bot.id
-    )
-    is_private = update.effective_chat.type == "private"
-
+    bot = await client.get_me()
+    is_mentioned = bot.username and f"@{bot.username}" in message.text
+    is_reply = message.reply_to_message and message.reply_to_message.from_user.id == bot.id
+    
     auto_chance = settings.get("chance", 0)
-    should_random_reply = random.randint(1, 100) <= auto_chance if auto_chance > 0 else False
+    should_reply = random.randint(1, 100) <= auto_chance if auto_chance > 0 else False
 
-    if is_mentioned or is_reply_to_bot or is_private or should_random_reply:
-        await context.bot.send_chat_action(chat_id=chat_id, action="typing")
+    if is_mentioned or is_reply or should_reply:
         reply = generate_ai_reply()
-        await update.message.reply_text(reply)
+        await message.reply_text(reply)
 
-def main():
-    if not TELEGRAM_TOKEN:
-        print("Error: BOT_TOKEN လိုအပ်နေပါသည်။")
-        return
-
-    threading.Thread(target=run_health_check_server, daemon=True).start()
-
-    app = Application.builder().token(TELEGRAM_TOKEN).build()
-
-    app.add_handler(CommandHandler("start", start_command))
-    app.add_handler(CommandHandler("help", help_command))
-    app.add_handler(CommandHandler("stats", stats_command))
-    app.add_handler(CommandHandler("add", add_command))
-    app.add_handler(CommandHandler("broadcast", broadcast_command))
-    app.add_handler(CommandHandler("tagall", tagall_command))
-    app.add_handler(CommandHandler("setchance", setchance_command))
-    app.add_handler(CommandHandler("boton", toggle_bot_command))
-    app.add_handler(CommandHandler("botoff", toggle_bot_command))
-    app.add_handler(CommandHandler("resetmemory", resetmemory_command))
-
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
-    print("Bot စတင်နေပါပြီ...")
-    app.run_polling()
-
-if __name__ == '__main__':
-    main()
+print("Bot စတင်နေပါပြီ...")
+app.run()
