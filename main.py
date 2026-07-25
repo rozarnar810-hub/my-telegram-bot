@@ -3,12 +3,6 @@ import json
 import asyncio
 import sys
 
-if sys.version_info >= (3, 14):
-    try:
-        asyncio.get_running_loop()
-    except RuntimeError:
-        asyncio.set_event_loop(asyncio.new_event_loop())
-
 from aiohttp import web
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message, CallbackQuery
@@ -43,14 +37,11 @@ def save_groups(data):
 
 known_groups = load_groups()
 
-# ဘော့ ပြန်ပွင့်လာတာနဲ့ သိမ်းထားသမျှ ဂရုများကို တန်းတင်ပေးရန်
 @app.on_raw_update()
 async def raw_updates_handler(client, update, users, chats):
     global known_groups
     updated = False
     for chat_id in chats:
-        real_id = -int(f"-100{chat_id}") if chat_id > 0 else -chat_id
-        # Supergroups & Groups ID handling
         for g_id in [chat_id, -chat_id, int(f"-100{chat_id}")]:
             if g_id not in known_groups and g_id < 0:
                 known_groups.append(g_id)
@@ -193,7 +184,7 @@ async def kick_cmd(client, message: Message):
         await client.unban_chat_member(message.chat.id, user_id)
         await message.reply_text("👢 အဖွဲ့ဝင်ကို ကန်ထုတ်လိုက်ပါပြီ။")
 
-# ==================== WEB SERVER ====================
+# ==================== WEB SERVER FOR RENDER ====================
 async def handle_ping(request):
     return web.Response(text="Bot is Alive & Running 24/7!")
 
@@ -206,20 +197,7 @@ async def start_web_server():
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
 
-async def main():
-    await start_web_server()
-    await app.start()
-    print("Bot & Web Server started successfully!")
-    await asyncio.Event().wait()
-
 if __name__ == "__main__":
-    try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            asyncio.create_task(main())
-        else:
-            loop.run_until_complete(main())
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(main())
+    loop = asyncio.get_event_loop()
+    loop.create_task(start_web_server())
+    app.run()
