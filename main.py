@@ -3,7 +3,6 @@ import json
 import asyncio
 import sys
 
-# Python 3.14 Event Loop Crash Fix
 if sys.version_info >= (3, 14):
     try:
         asyncio.get_running_loop()
@@ -44,11 +43,10 @@ async def track_groups(client, message: Message):
         known_groups.append(message.chat.id)
         save_groups(known_groups)
 
-# ==================== MENUS & KEYBOARDS ====================
 def main_menu_keyboard():
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("👑 ပိုင်ရှင်သုံး (1-30)", callback_data="m_owner"), InlineKeyboardButton("🛠️ Admin မီနူး (31-70)", callback_data="m_admin")],
-        [InlineKeyboardButton("🧹 Cleaner & Tools (71-110)", callback_data="m_tools"), InlineKeyboardButton("🎈 အထွေထွေ (111-150)", callback_data="m_general")],
+        [InlineKeyboardButton("👑 ပိုင်ရှင်သုံး မီနူး", callback_data="m_owner"), InlineKeyboardButton("🛠️ Admin မီနူး", callback_data="m_admin")],
+        [InlineKeyboardButton("🧹 Cleaner & Tools", callback_data="m_tools"), InlineKeyboardButton("🎈 အထွေထွေ မီနူး", callback_data="m_general")],
         [InlineKeyboardButton("👨‍💻 Bot Owner / Developer", url=OWNER_LINK)]
     ])
 
@@ -57,17 +55,17 @@ def back_kb():
 
 @app.on_message(filters.command(["start", "help"]))
 async def start_command(client, message: Message):
-    await message.reply_text("🤖 **မင်္ဂလာပါ! Commands ၁၅၀ ကျော် အဆင်သင့် ဖြစ်ပါပြီ။ အောက်ပါ Button များကို နှိပ်ကြည့်ပါ:**", reply_markup=main_menu_keyboard())
+    await message.reply_text("🤖 **မင်္ဂလာပါ! အောက်ပါ Button များကို နှိပ်ပြီး အသုံးပြုနိုင်ပါပြီ:**", reply_markup=main_menu_keyboard())
 
 @app.on_callback_query()
 async def callback_handler(client, callback_query: CallbackQuery):
     data = callback_query.data
     menus = {
-        "m_owner": ("👑 **ပိုင်ရှင်သုံး Commands များ:**\n\n• `/broadcast [စာ]` - အားလုံးသို့ စာပို့ရန်\n• `/chats` - ဂရုစာရင်းစစ်ရန်\n• `/eval` - ကုဒ်စမ်းသပ်ရန်\n• `/stats` - စာရင်းအင်းကြည့်ရန်", back_kb()),
-        "m_admin": ("🛠️ **Admin Commands များ:**\n\n• `/ban` - အဖွဲ့ဝင်ထုတ်ရန်\n• `/unban` - ပိတ်ပင်မှုဖြုတ်ရန်\n• `/mute` - စာမရေးရအောင်ပိတ်ရန်\n• `/unmute` - စာရေးခွင့်ပေးရန်\n• `/pin` - မက်ဆေ့ဂျ်ချိတ်ရန်\n• `/unpin` - ဖြုတ်ရန်\n• `/kick` - ကန်ထုတ်ရန်", back_kb()),
-        "m_tools": ("🧹 **Cleaner & Tools Commands:**\n\n• `/del` - ရေးထားသောစာဖျက်ရန်\n• `/purge` - အများအပြားရှင်းရန်\n• `/id` - ID စစ်ရန်", back_kb()),
-        "m_general": ("🎈 **အထွေထွေ Commands များ:**\n\n• `/ping` - ဘော့အမြန်နှုန်းစစ်ရန်\n• `/time` - အချိန်ကြည့်ရန်\n• `/date` - ရက်စွဲကြည့်ရန်", back_kb()),
-        "main_menu": ("🤖 **မင်္ဂလာပါ! Commands ၁၅၀ ကျော် အဆင်သင့် ဖြစ်ပါပြီ။ အောက်ပါ Button များကို နှိပ်ကြည့်ပါ:**", main_menu_keyboard())
+        "m_owner": ("👑 **ပိုင်ရှင်သုံး Commands များ:**\n\n• `/broadcast [စာ]` - အားလုံးသို့ စာပို့ရန်\n• `/chats` - ဘော့ရောက်နေသော ဂရုစာရင်းကြည့်ရန်\n• `/stats` - စာရင်းအင်းကြည့်ရန်", back_kb()),
+        "m_admin": ("🛠️ **Admin Commands များ:**\n\n• `/ban` - အဖွဲ့ဝင်ထုတ်ရန် (Reply လုပ်၍)\n• `/unban` - ပိတ်ပင်မှုဖြုတ်ရန်\n• `/mute` - စာမရေးရအောင်ပိတ်ရန်\n• `/unmute` - စာရေးခွင့်ပေးရန်\n• `/pin` - မက်ဆေ့ဂျ်ချိတ်ရန်\n• `/kick` - ကန်ထုတ်ရန်", back_kb()),
+        "m_tools": ("🧹 **Cleaner & Tools:**\n\n• `/del` - စာဖျက်ရန်\n• `/purge` - အများအပြားရှင်းရန်\n• `/id` - ID စစ်ရန်", back_kb()),
+        "m_general": ("🎈 **အထွေထွေ Commands များ:**\n\n• `/ping` - အမြန်နှုန်းစစ်ရန်\n• `/time` - အချိန်ကြည့်ရန်", back_kb()),
+        "main_menu": ("🤖 **မင်္ဂလာပါ! အောက်ပါ Button များကို နှိပ်ပြီး အသုံးပြုနိုင်ပါပြီ:**", main_menu_keyboard())
     }
     if data in menus:
         text, markup = menus[data]
@@ -76,7 +74,7 @@ async def callback_handler(client, callback_query: CallbackQuery):
         except Exception:
             pass
 
-# ==================== REAL WORKING COMMANDS ====================
+# ==================== WORKING COMMANDS ====================
 
 @app.on_message(filters.command("ping"))
 async def ping_cmd(client, message: Message):
@@ -91,11 +89,15 @@ async def id_cmd(client, message: Message):
 @app.on_message(filters.command("chats") & filters.user(OWNER_ID))
 async def chats_cmd(client, message: Message):
     if not known_groups:
-        return await message.reply_text("ℹ️ မည်သည့် Group တွင်မျှ ထည့်သွင်းထားခြင်း မရှိသေးပါ။")
-    msg = f"📊 **ရောက်ရှိနေသော Group များ ({len(known_groups)}):**\n\n"
+        return await message.reply_text("ℹ️ မည်သည့် Group တွင်မျှ ထည့်သွင်းထားခြင်း မရှိသေးပါ။ (သို့မဟုတ် Group ထဲတွင် စာတစ်ကြောင်းလောက် ရေးခိုင်းပါ)")
+    msg = f"📊 **ဘော့ရောက်ရှိနေသော Group စစာရင်း ({len(known_groups)}):**\n\n"
     for gid in known_groups:
-        msg += f"• `{gid}`\n"
+        msg += f"• `{-gid if gid < 0 else gid}` (ID: `{gid}`)\n"
     await message.reply_text(msg)
+
+@app.on_message(filters.command("stats") & filters.user(OWNER_ID))
+async def stats_cmd(client, message: Message):
+    await message.reply_text(f"📈 **Bot Statistics:**\n\n• Total Groups Connected: `{len(known_groups)}`\n• Status: `Active & Online 24/7`")
 
 @app.on_message(filters.command("broadcast") & filters.user(OWNER_ID))
 async def broadcast_cmd(client, message: Message):
@@ -123,12 +125,6 @@ async def pin_cmd(client, message: Message):
         await message.reply_to_message.pin()
         await message.reply_text("📌 မက်ဆေ့ဂျ်ကို Pin ထိုးပြီးပါပြီ။")
 
-@app.on_message(filters.command("unpin") & filters.group)
-async def unpin_cmd(client, message: Message):
-    if message.reply_to_message:
-        await message.reply_to_message.unpin()
-        await message.reply_text("🔓 Pin ဖြုတ်ပြီးပါပြီ။")
-
 @app.on_message(filters.command("ban") & filters.group)
 async def ban_cmd(client, message: Message):
     if message.reply_to_message:
@@ -141,7 +137,7 @@ async def unban_cmd(client, message: Message):
     if message.reply_to_message:
         user_id = message.reply_to_message.from_user.id
         await client.unban_chat_member(message.chat.id, user_id)
-        await message.reply_text("🔓 အဖွဲ့ဝင်၏ ပိတ်ပင်မှုကို ဖြုတ်ပေးလိုက်ပါပြီ။")
+        await message.reply_text("🔓 ဤအဖွဲ့ဝင်၏ ပိတ်ပင်မှုကို ဖြုတ်ပေးလိုက်ပါပြီ။")
 
 @app.on_message(filters.command("mute") & filters.group)
 async def mute_cmd(client, message: Message):
@@ -149,7 +145,7 @@ async def mute_cmd(client, message: Message):
         user_id = message.reply_to_message.from_user.id
         from pyrogram.types import ChatPermissions
         await client.restrict_chat_member(message.chat.id, user_id, ChatPermissions(can_send_messages=False))
-        await message.reply_text("🔇 ဤအဖွဲ့ဝင်ကို စာမရေးရအောင် ပိတ်လိုက်ပါပြီ။")
+        await message.reply_text("🔇 စာမရေးရအောင် ပိတ်လိုက်ပါပြီ။")
 
 @app.on_message(filters.command("unmute") & filters.group)
 async def unmute_cmd(client, message: Message):
@@ -157,7 +153,7 @@ async def unmute_cmd(client, message: Message):
         user_id = message.reply_to_message.from_user.id
         from pyrogram.types import ChatPermissions
         await client.restrict_chat_member(message.chat.id, user_id, ChatPermissions(can_send_messages=True, can_send_media_messages=True, can_send_other_messages=True))
-        await message.reply_text("🔊 အဖွဲ့ဝင်အား စာရေးခွင့် ပြန်ပေးလိုက်ပါပြီ။")
+        await message.reply_text("🔊 စာရေးခွင့် ပြန်ပေးလိုက်ပါပြီ။")
 
 @app.on_message(filters.command("kick") & filters.group)
 async def kick_cmd(client, message: Message):
@@ -165,9 +161,9 @@ async def kick_cmd(client, message: Message):
         user_id = message.reply_to_message.from_user.id
         await client.ban_chat_member(message.chat.id, user_id)
         await client.unban_chat_member(message.chat.id, user_id)
-        await message.reply_text("👢 အဖွဲ့ဝင်ကို အပြင်သို့ ကန်ထုတ်လိုက်ပါပြီ။")
+        await message.reply_text("👢 အဖွဲ့ဝင်ကို ကန်ထုတ်လိုက်ပါပြီ။")
 
-# ==================== KEEP-ALIVE WEB SERVER ====================
+# ==================== WEB SERVER ====================
 async def handle_ping(request):
     return web.Response(text="Bot is Alive & Running 24/7!")
 
@@ -183,7 +179,7 @@ async def start_web_server():
 async def main():
     await start_web_server()
     await app.start()
-    print("Bot & Web Server started successfully with 150+ commands!")
+    print("Bot & Web Server started successfully!")
     await asyncio.Event().wait()
 
 if __name__ == "__main__":
