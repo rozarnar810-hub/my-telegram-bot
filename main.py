@@ -3,6 +3,13 @@ import json
 import asyncio
 import sys
 
+# Event Loop ကို အစောဆုံး သတ်မှတ်ပေးခြင်း
+try:
+    loop = asyncio.get_event_loop()
+except RuntimeError:
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
 from aiohttp import web
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message, CallbackQuery
@@ -202,5 +209,4 @@ async def main():
     await asyncio.Event().wait()
 
 if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
     loop.run_until_complete(main())
