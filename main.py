@@ -3,6 +3,13 @@ import json
 import asyncio
 import sys
 
+# Python 3.14 အတွက် Event Loop အသစ်စတင်ပေးရန်
+try:
+    loop = asyncio.get_event_loop()
+except RuntimeError:
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
 from aiohttp import web
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message, CallbackQuery
@@ -184,11 +191,12 @@ async def kick_cmd(client, message: Message):
         await client.unban_chat_member(message.chat.id, user_id)
         await message.reply_text("👢 အဖွဲ့ဝင်ကို ကန်ထုတ်လိုက်ပါပြီ။")
 
-# ==================== WEB SERVER FOR RENDER ====================
+# ==================== WEB SERVER & MAIN RUNNER ====================
 async def handle_ping(request):
     return web.Response(text="Bot is Alive & Running 24/7!")
 
-async def start_web_server():
+async def main():
+    # Web Server စတင်ရန်
     server = web.Application()
     server.router.add_get("/", handle_ping)
     runner = web.AppRunner(server)
@@ -196,8 +204,11 @@ async def start_web_server():
     port = int(os.environ.get("PORT", 10000))
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
+    
+    # Bot စတင်ရန်
+    await app.start()
+    print("Bot & Web Server started successfully!")
+    await asyncio.Event().wait()
 
 if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
-    loop.create_task(start_web_server())
-    app.run()
+    loop.run_until_complete(main())
