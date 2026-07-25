@@ -26,7 +26,6 @@ app = Client("flash_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
 MEMORY_FILE = "chat_memory.json"
 GROUPS_FILE = "groups_list.json"
-TAG_TASKS = {}
 
 # ==================== DATA STORAGE ====================
 def load_data(filename):
@@ -55,7 +54,7 @@ async def track_groups(client, message: Message):
         known_groups.append(message.chat.id)
         save_data(GROUPS_FILE, known_groups)
 
-# ==================== KEYBOARDS & MENUS ====================
+# ==================== KEYBOARDS ====================
 def main_menu_keyboard():
     return InlineKeyboardMarkup([
         [
@@ -83,6 +82,7 @@ def main_menu_keyboard():
         ]
     ])
 
+# ==================== COMMANDS ====================
 @app.on_message(filters.command(["start", "help"]))
 async def help_command(client, message: Message):
     await message.reply_text(
@@ -102,12 +102,12 @@ async def callback_handler(client, callback_query: CallbackQuery):
         "main_menu": ("🤖 **မင်္ဂလာပါဗျာ! အောက်ပါ Button လေးတွေကို နှိပ်ပြီး Commands များကို ကြည့်ရှုနိုင်ပါတယ်:**", main_menu_keyboard()),
         "owner_tools": ("👑 **ပိုင်ရှင်သုံး Commands များ:**\n\n• `/broadcast [စာ]` - Group အားလုံးသို့ ကြော်ငြာစာပို့ရန်\n• `/chats` - Bot ရောက်နေသော Group များကို စစ်ရန်", back_button),
         "tag_mention": ("📢 **Tag & Mention Commands များ:**\n\n• `/all [စာ]` - Group မန်ဘာအားလုံးကို Tag ခေါ်ရန်\n• `/cancel` - Tag ခေါ်နေတာကို ရပ်တန့်ရန်", back_button),
-        "admin_tools": ("🛠️ **Admin Commands များ:**\n\n• `/ban`, `/unban`, `/mute`, `/unmute`, `/kick`, `/pin`, `/unpin`, `/promote`, `/demote`", back_button),
-        "group_sec": ("🛡️ **Group လုံခြုံရေး:** Bot ကို Admin ပေးထားပါက Group ကို လုံခြုံစွာ စီမံပေးပါမည်။", back_button),
-        "cleaner": ("🧹 **Cleaner:**\n\n• `/del` - စာဖျက်ရန်\n• `/purge` - စာအမြောက်အများဖျက်ရန်", back_button),
-        "ai_media": ("🎨 **AI & Auto Reply:** စကားပြောပါက မှတ်သားထားသည်များဖြင့် အလိုအလျောက် ပြန်ဖြေပေးပါမည်။", back_button),
-        "fun_games": ("🎲 **ဂိမ်းများနှင့် ဖျော်ဖြေရေး:**\n\n• `/dice` - အန်စာတုံး လှိမ့်ရန်\n• `/dart` - မြားပစ်ရန်\n• `/basket` - ဘတ်စကတ်ဘောပစ်ရန်\n• `/football` - ဘောလုံးကန်ရန်\n• `/slot` - Slot မာရှင်ကစားရန်\n• `/flip` - အကြွေစေ့လှန်ရန်\n• `/rps` - ကျောက် ကျား စက္ကူ ကစားရန်", back_button),
-        "general": ("🎈 **အထွေထွေ Commands များ:**\n\n• `/id` - ID စစ်ရန်\n• `/ping` - Bot Speed စစ်ရန်\n• `/time` & `/date` - အချိန်နှင့် ရက်စွဲကြည့်ရန်\n• `/info` - User အချက်အလက်ကြည့်ရန်", back_button),
+        "admin_tools": ("🛠️ **Admin Commands များ:**\n\n• `/ban`, `/unban`, `/mute`, `/unmute`, `/kick`, `/pin`, `/unpin`", back_button),
+        "group_sec": ("🛡️ **Group လုံခြုံရေး:** Bot ကို Admin ပေးထားပါက Group ကို စီမံပေးပါမည်။", back_button),
+        "cleaner": ("🧹 **Cleaner:** `/del` - စာဖျက်ရန်", back_button),
+        "ai_media": ("🎨 **Auto-Learning Reply:** စကားပြောပါက မှတ်သားထားသည်များဖြင့် ပြန်ဖြေပေးပါမည်။", back_button),
+        "fun_games": ("🎲 **ဂိမ်းများ:** `/dice`, `/dart`, `/basket`, `/football`, `/slot`, `/flip`, `/rps`", back_button),
+        "general": ("🎈 **အထွေထွေ:** `/id`, `/ping`, `/time`, `/date`", back_button),
         "about": (f"ℹ️ **Flash Bot**\nDeveloper: [Ben Hur]({OWNER_LINK})", back_button),
         "rules": ("📜 Group စည်းကမ်းများကို လိုက်နာပါ။", back_button)
     }
@@ -123,7 +123,7 @@ async def callback_handler(client, callback_query: CallbackQuery):
         except MessageNotModified:
             pass
 
-# ==================== OWNER COMMANDS ====================
+# Owner Commands
 @app.on_message(filters.command("chats") & filters.user(OWNER_ID))
 async def list_chats(client, message: Message):
     if not known_groups:
@@ -153,147 +153,7 @@ async def broadcast_msg(client, message: Message):
             failed += 1
     await message.reply_text(f"✅ **Broadcast ပို့ပြီးပါပြီ!**\nအောင်မြင်: `{success}` | မအောင်မြင်: `{failed}`")
 
-# ==================== TAG & MENTION COMMANDS ====================
-@app.on_message(filters.command("all") & filters.group)
-async def tag_all(client, message: Message):
-    chat_id = message.chat.id
-    if chat_id in TAG_TASKS and TAG_TASKS[chat_id]:
-        return await message.reply_text("⚠️ Tag ခေါ်ခြင်း လုပ်ငန်းစဉ် တစ်ခု လုပ်ဆောင်ဆဲ ဖြစ်ပါသည်။")
-    
-    text = message.text.split(None, 1)[1] if len(message.command) > 1 else "📢 မန်ဘာအားလုံး အာရုံစိုက်ပေးပါဗျို့!"
-    TAG_TASKS[chat_id] = True
-    
-    try:
-        async for member in client.get_chat_members(chat_id):
-            if not TAG_TASKS.get(chat_id, False):
-                break
-            if member.user.is_bot or member.user.is_deleted:
-                continue
-            await message.reply_text(f"[{member.user.first_name}](tg://user?id={member.user.id}) {text}")
-            await asyncio.sleep(2)
-    except Exception as e:
-        await message.reply_text(f"❌ Error ဖြစ်သွားပါသည်: {e}")
-    finally:
-        TAG_TASKS[chat_id] = False
-
-@app.on_message(filters.command("cancel") & filters.group)
-async def cancel_tag(client, message: Message):
-    chat_id = message.chat.id
-    if chat_id in TAG_TASKS:
-        TAG_TASKS[chat_id] = False
-        await message.reply_text("🛑 Tag ခေါ်ခြင်းကို ရပ်တန့်လိုက်ပါပြီ။")
-    else:
-        await message.reply_text("ℹ️ လက်လွှတ်စရာ Tag ခေါ်ဆိုမှု မရှိပါ။")
-
-# ==================== ADMIN COMMANDS ====================
-@app.on_message(filters.command("ban") & filters.group)
-async def ban_user(client, message: Message):
-    if not message.reply_to_message:
-        return await message.reply_text("⚠️ Ban မည့်သူ့စာကို Reply လုပ်ပါ။")
-    user_id = message.reply_to_message.from_user.id
-    await client.ban_chat_member(message.chat.id, user_id)
-    await message.reply_text("🔨 အောင်မြင်စွာ Ban လိုက်ပါပြီ။")
-
-@app.on_message(filters.command("unban") & filters.group)
-async def unban_user(client, message: Message):
-    if not message.reply_to_message:
-        return await message.reply_text("⚠️ Unban မည့်သူ့စာကို Reply လုပ်ပါ။")
-    user_id = message.reply_to_message.from_user.id
-    await client.unban_chat_member(message.chat.id, user_id)
-    await message.reply_text("🔓 အောင်မြင်စွာ Unban လိုက်ပါပြီ။")
-
-@app.on_message(filters.command("mute") & filters.group)
-async def mute_user(client, message: Message):
-    if not message.reply_to_message:
-        return await message.reply_text("⚠️ Mute မည့်သူ့စာကို Reply လုပ်ပါ။")
-    user_id = message.reply_to_message.from_user.id
-    from pyrogram.types import ChatPermissions
-    await client.restrict_chat_member(message.chat.id, user_id, ChatPermissions(can_send_messages=False))
-    await message.reply_text("🔇 ဤသူ့ကို Mute လိုက်ပါပြီ။")
-
-@app.on_message(filters.command("unmute") & filters.group)
-async def unmute_user(client, message: Message):
-    if not message.reply_to_message:
-        return await message.reply_text("⚠️ Unmute မည့်သူ့စာကို Reply လုပ်ပါ။")
-    user_id = message.reply_to_message.from_user.id
-    from pyrogram.types import ChatPermissions
-    await client.restrict_chat_member(message.chat.id, user_id, ChatPermissions(can_send_messages=True))
-    await message.reply_text("🔊 အောင်မြင်စွာ Unmute လိုက်ပါပြီ။")
-
-@app.on_message(filters.command("pin") & filters.group)
-async def pin_msg(client, message: Message):
-    if not message.reply_to_message:
-        return await message.reply_text("⚠️ Pin လုပ်မည့်စာကို Reply လုပ်ပါ။")
-    await message.reply_to_message.pin()
-    await message.reply_text("ピン Pin ပြီးပါပြီ။")
-
-@app.on_message(filters.command("unpin") & filters.group)
-async def unpin_msg(client, message: Message):
-    if message.reply_to_message:
-        await message.reply_to_message.unpin()
-    else:
-        await client.unpin_all_chat_messages(message.chat.id)
-    await message.reply_text("🔓 Pin ဖြုတ်ပြီးပါပြီ။")
-
-# ==================== CLEANER & UTILS ====================
-@app.on_message(filters.command("del") & filters.group)
-async def delete_msg(client, message: Message):
-    if message.reply_to_message:
-        await message.reply_to_message.delete()
-        await message.delete()
-
-@app.on_message(filters.command("id"))
-async def get_id(client, message: Message):
-    target = message.reply_to_message.from_user if message.reply_to_message else message.from_user
-    chat = message.chat
-    await message.reply_text(f"🆔 **ID Information:**\n\n• Your ID: `{target.id}`\n• Chat ID: `{chat.id}`")
-
-@app.on_message(filters.command("ping"))
-async def ping_cmd(client, message: Message):
-    start = datetime.now()
-    m = await message.reply_text("🏓 Pinging...")
-    end = datetime.now()
-    ms = (end - start).microseconds / 1000
-    await m.edit_text(f"🏓 **Pong!**\n⏱ Speed: `{ms} ms`")
-
-@app.on_message(filters.command("time"))
-async def time_cmd(client, message: Message):
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    await message.reply_text(f"🕒 **Current Time:** `{now}`")
-
-# ==================== FUN & GAMES ====================
-@app.on_message(filters.command("dice"))
-async def roll_dice(client, message: Message):
-    await client.send_dice(message.chat.id, emoji="🎲")
-
-@app.on_message(filters.command("dart"))
-async def throw_dart(client, message: Message):
-    await client.send_dice(message.chat.id, emoji="🎯")
-
-@app.on_message(filters.command("basket"))
-async def throw_basket(client, message: Message):
-    await client.send_dice(message.chat.id, emoji="🏀")
-
-@app.on_message(filters.command("football"))
-async def kick_football(client, message: Message):
-    await client.send_dice(message.chat.id, emoji="⚽")
-
-@app.on_message(filters.command("slot"))
-async def spin_slot(client, message: Message):
-    await client.send_dice(message.chat.id, emoji="🎰")
-
-@app.on_message(filters.command("flip"))
-async def flip_coin(client, message: Message):
-    result = random.choice(["🪙 ခေါင်း (Heads)", "🪙 ပန်း (Tails)"])
-    await message.reply_text(f"အကြွေစေ့ ရလဒ်: **{result}**")
-
-@app.on_message(filters.command("rps"))
-async def play_rps(client, message: Message):
-    choices = ["ကျောက် (Rock)", "စက္ကူ (Paper)", "ကျား (Scissors)"]
-    bot_choice = random.choice(choices)
-    await message.reply_text(f"🤖 Bot ရွေးချယ်မှု: **{bot_choice}**")
-
-# ==================== AI & AUTO REPLY ====================
+# Auto Reply
 @app.on_message(filters.text & ~filters.bot)
 async def auto_learn_and_reply(client, message: Message):
     text = message.text.strip().lower()
@@ -319,6 +179,7 @@ async def start_web_server():
     runner = web.AppRunner(server)
     await runner.setup()
     
+    # Render Port Configuration (Default: 10000)
     port = int(os.environ.get("PORT", 10000))
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
@@ -327,7 +188,7 @@ async def start_web_server():
 async def main():
     await start_web_server()
     await app.start()
-    print("Bot & Keep-Alive Web Server started successfully!")
+    print("Bot & Keep-Alive Web Server started!")
     await asyncio.Event().wait()
 
 if __name__ == "__main__":
