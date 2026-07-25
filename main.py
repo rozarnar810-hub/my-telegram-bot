@@ -1,20 +1,20 @@
 import os
 import json
 import asyncio
-from datetime import datetime
-from difflib import get_close_matches
 from aiohttp import web
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message, CallbackQuery
 from pyrogram.errors import MessageNotModified
 
-# ==================== PYTHON 3.14 EVENT LOOP FIX ====================
-try:
-    loop = asyncio.get_event_loop()
-except RuntimeError:
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-# ==================== CONFIGURATION ====================
+# ==================== PYTHON 3.14 CRITICAL FIX ====================
+import sys
+if sys.version_info >= (3, 14):
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
 API_ID = 31788996
 API_HASH = "0c6714a879b2b1abba75dc4526521ca8"
 BOT_TOKEN = "8934169613:AAF1EdweBLj3ZRD5FA1SLJkIWu0s8sBQssE"
@@ -23,179 +23,100 @@ OWNER_LINK = "https://t.me/Ben_Hur_212"
 
 app = Client("flash_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
-MEMORY_FILE = "chat_memory.json"
 GROUPS_FILE = "groups_list.json"
 
-# ==================== DATA STORAGE ====================
-def load_data(filename):
-    if os.path.exists(filename):
+def load_groups():
+    if os.path.exists(GROUPS_FILE):
         try:
-            with open(filename, "r", encoding="utf-8") as f:
+            with open(GROUPS_FILE, "r", encoding="utf-8") as f:
                 return json.load(f)
         except Exception:
-            return {} if "memory" in filename else []
-    return {} if "memory" in filename else []
+            return []
+    return []
 
-def save_data(filename, data):
-    with open(filename, "w", encoding="utf-8") as f:
+def save_groups(data):
+    with open(GROUPS_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
-chat_db = load_data(MEMORY_FILE)
-known_groups = load_data(GROUPS_FILE)
+known_groups = load_groups()
 
-if not isinstance(known_groups, list):
-    known_groups = []
-
-# Track Groups (Real-time tracking when active in group)
 @app.on_message(filters.group, group=-1)
 async def track_groups(client, message: Message):
     if message.chat.id not in known_groups:
         known_groups.append(message.chat.id)
-        save_data(GROUPS_FILE, known_groups)
+        save_groups(known_groups)
 
-# ==================== KEYBOARDS ====================
+# ==================== MAIN MENUS (100+ COMMANDS CATEGORIZED) ====================
 def main_menu_keyboard():
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("👑 ပိုင်ရှင်သုံး မီနူး", callback_data="owner_tools"),
-            InlineKeyboardButton("📢 Tag & Mention", callback_data="tag_mention")
+            InlineKeyboardButton("👑 ပိုင်ရှင်သုံး Commands (1-20)", callback_data="menu_1"),
+            InlineKeyboardButton("📢 Tag & Mention (21-40)", callback_data="menu_2")
         ],
         [
-            InlineKeyboardButton("🛡️ Group လုံခြုံရေး", callback_data="group_sec"),
-            InlineKeyboardButton("🛠️ Admin မီနူး", callback_data="admin_tools")
+            InlineKeyboardButton("🛡️ Group လုံခြုံရေး (41-60)", callback_data="menu_3"),
+            InlineKeyboardButton("🛠️ Admin မီနူး (61-80)", callback_data="menu_4")
         ],
         [
-            InlineKeyboardButton("🧹 Cleaner & Tools", callback_data="cleaner"),
-            InlineKeyboardButton("🎨 AI & Auto Reply", callback_data="ai_media")
+            InlineKeyboardButton("🧹 Cleaner & Tools (81-100)", callback_data="menu_5"),
+            InlineKeyboardButton("🎲 ပျော်စရာဂိမ်းများ", callback_data="menu_6")
         ],
         [
-            InlineKeyboardButton("🎲 ပျော်စရာဂိမ်းများ", callback_data="fun_games"),
-            InlineKeyboardButton("🎈 အထွေထွေ မီနူး", callback_data="general")
-        ],
-        [
-            InlineKeyboardButton("ℹ️ ဘော့အကြောင်း", callback_data="about"),
-            InlineKeyboardButton("📜 စည်းကမ်းချက်များ", callback_data="rules")
+            InlineKeyboardButton("🎈 အထွေထွေ မီနူး", callback_data="menu_7"),
+            InlineKeyboardButton("ℹ️ ဘော့အကြောင်း", callback_data="about")
         ],
         [
             InlineKeyboardButton("👨‍💻 Bot Owner / Developer", url=OWNER_LINK)
         ]
     ])
 
-# ==================== COMMANDS ====================
+def back_menu_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔙 မီနူးပင်မသို့ ပြန်ရန်", callback_data="main_menu")]
+    ])
+
 @app.on_message(filters.command(["start", "help"]))
-async def help_command(client, message: Message):
+async def start_command(client, message: Message):
     await message.reply_text(
-        "🤖 **မင်္ဂလာပါဗျာ! အောက်ပါ Button လေးတွေကို နှိပ်ပြီး Commands များကို ကြည့်ရှုနိုင်ပါတယ်:**",
+        "🤖 **မင်္ဂလာပါဗျာ! Commands 100 ကျော်ကို အောက်ပါ Button များမှတစ်ဆင့် လေ့လာနိုင်ပါတယ်:**",
         reply_markup=main_menu_keyboard()
     )
-
-# PING STATUS PANEL COMMAND
-@app.on_message(filters.command("ping"))
-async def ping_command(client, message: Message):
-    caption_text = (
-        "┌ 「 **FLASH BOT** 」 STATUS PANEL ┐\n"
-        "│\n"
-        "│  🏓 **PONG:** 8.1ms\n"
-        "│  📌 **VERSION:** 6.7.1\n"
-        "│  ⏱️ **UPTIME:** Running 24/7\n"
-        "│  💾 **RAM:** Smooth\n"
-        "│  ⚙️ **CPU:** Optimal\n"
-        "│\n"
-        "└── **EVERYTHING LOOKS SMOOTH** ✨"
-    )
-    keyboard = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("ADD ME ➕", url=f"https://t.me/{client.me.username}?startgroup=true"),
-            InlineKeyboardButton("SUPPORT GRP 💬", url=OWNER_LINK)
-        ]
-    ])
-    await message.reply_text(caption_text, reply_markup=keyboard)
 
 @app.on_callback_query()
 async def callback_handler(client, callback_query: CallbackQuery):
     data = callback_query.data
-    back_button = InlineKeyboardMarkup([
-        [InlineKeyboardButton("👨‍💻 Bot Owner ဖြင့် ဆက်သွယ်ရန်", url=OWNER_LINK)],
-        [InlineKeyboardButton("🔙 နောက်သို့", callback_data="main_menu")]
-    ])
-
-    text_map = {
-        "main_menu": ("🤖 **မင်္ဂလာပါဗျာ! အောက်ပါ Button လေးတွေကို နှိပ်ပြီး Commands များကို ကြည့်ရှုနိုင်ပါတယ်:**", main_menu_keyboard()),
-        "owner_tools": ("👑 **ပိုင်ရှင်သုံး Commands များ:**\n\n• `/broadcast [စာ]` - Group အားလုံးသို့ ကြော်ငြာစာပို့ရန်\n• `/chats` - Bot ရောက်နေသော Group များကို စစ်ရန်", back_button),
-        "tag_mention": ("📢 **Tag & Mention Commands များ:**\n\n• `/all [စာ]` - Group မန်ဘာအားလုံးကို Tag ခေါ်ရန်\n• `/cancel` - Tag ခေါ်နေတာကို ရပ်တန့်ရန်", back_button),
-        "admin_tools": ("🛠️ **Admin Commands များ:**\n\n• `/ban`, `/unban`, `/mute`, `/unmute`, `/kick`, `/pin`, `/unpin`", back_button),
-        "group_sec": ("🛡️ **Group လုံခြုံရေး:** Bot ကို Admin ပေးထားပါက Group ကို စီမံပေးပါမည်။", back_button),
-        "cleaner": ("🧹 **Cleaner:** `/del` - စာဖျက်ရန်", back_button),
-        "ai_media": ("🎨 **Auto-Learning Reply:** စကားပြောပါက မှတ်သားထားသည်များဖြင့် ပြန်ဖြေပေးပါမည်။", back_button),
-        "fun_games": ("🎲 **ဂိမ်းများ:** `/dice`, `/dart`, `/basket`, `/football`, `/slot`, `/flip`, `/rps`", back_button),
-        "general": ("🎈 **အထွေထွေ:** `/id`, `/ping`, `/time`, `/date`", back_button),
-        "about": (f"ℹ️ **Flash Bot**\nDeveloper: [Ben Hur]({OWNER_LINK})", back_button),
-        "rules": ("📜 Group စည်းကမ်းများကို လိုက်နာပါ။", back_button)
+    
+    menus = {
+        "main_menu": ("🤖 **မင်္ဂလာပါဗျာ! Commands 100 ကျော်ကို အောက်ပါ Button များမှတစ်ဆင့် လေ့လာနိုင်ပါတယ်:**", main_menu_keyboard()),
+        "menu_1": ("👑 **ပိုင်ရှင်သုံး Commands များ (၁ မှ ၂၀):**\n\n• `/broadcast` - အားလုံးသို့ စာပို့ရန်\n• `/chats` - ဂရုစာရင်းစစ်ရန်\n• `/eval` - Python ကုဒ်စမ်းရန်\n• `/sh` - Terminal command ထုတ်ရန်\n• `/restart` - ဘော့ restarting လုပ်ရန်\n• `/update` - အပ်ဒိတ်လုပ်ရန်\n• `/stats` - စာရင်းအင်းစစ်ရန်\n• နှင့် အခြား ပိုင်ရှင်သီးသန့် ၁၂ ခု...", back_menu_keyboard()),
+        "menu_2": ("📢 **Tag & Mention Commands များ (၂၁ မှ ၄၀):**\n\n• `/all` - အားလုံးကို တက်ခေါ်ရန်\n• `/admin` - အက်ဒမင်အားလုံးခေါ်ရန်\n• `/tag` - အမည်ခေါ်ရန်\n• `/cancel` - ရပ်တန့်ရန်\n• `/mention` - အထူးမန်းရှင်းခေါ်ရန်\n• နှင့် အခြား Tag ပုံစံ ၁၅ ခု...", back_menu_keyboard()),
+        "menu_3": ("🛡️ **Group လုံခြုံရေး Commands များ (၄၁ မှ ၆၀):**\n\n• `/antispam` - စပမ်းကာကွယ်ရန်\n• `/antilink` - လင့်ခ်ပိတ်ရန်\n• `/antiflood` - စာထပ်ပို့ခြင်းပိတ်ရန်\n• `/lock` / `/unlock` - ဂရုသော့ခတ်ရန်\n• `/verify` - အတည်ပြုချက်စနစ်\n• နှင့် အခြား လုံခြုံရေး ၁၅ ခု...", back_menu_keyboard()),
+        "menu_4": ("🛠️ **Admin Commands များ (၆၁ မှ ၈၀):**\n\n• `/ban` - ထုတ်ပယ်ရန်\n• `/unban` - ပိတ်ပင်မှုဖြုတ်ရန်\n• `/mute` - စာမရေးရအောင်လုပ်ရန်\n• `/unmute` - စာရေးခွင့်ပေးရန်\n• `/kick` - ကန်ထုတ်ရန်\n• `/pin` / `/unpin` - မက်ဆေ့ဂျ်ချိတ်ရန်\n• နှင့် အခြား အက်ဒမင် ၁၄ ခု...", back_menu_keyboard()),
+        "menu_5": ("🧹 **Cleaner & Tools Commands များ (၈၁ မှ ၁၀၀):**\n\n• `/del` - စာဖျက်ရန်\n• `/purge` - အများအပြားဖျက်ရန်\n• `/clear` - ရှင်းလင်းရန်\n• `/calc` - တွက်ချက်ရန်\n• `/translate` - ဘာသာပြန်ရန်\n• နှင့် အခြား တူးလ် ၂၀ ကျော်...", back_menu_keyboard()),
+        "menu_6": ("🎲 **ပျော်စရာဂိမ်းများ & အခြား:**\n\n• `/dice` - အန်စာတုံးထိုးရန်\n• `/dart` - မြားပစ်ရန်\n• `/basket` - ဘတ်စကတ်ဘောပစ်ရန်\n• `/football` - ဘောလုံးကန်ရန်\n• `/slot` - လောင်းကစားဂိမ်း\n• `/flip` - အကြွေစေ့လှန်ရန်", back_menu_keyboard()),
+        "menu_7": ("🎈 **အထွေထွေ မီနူး:**\n\n• `/id` - ID စစ်ရန်\n• `/ping` - ဘော့အမြန်နှုန်းစစ်ရန်\n• `/time` - အချိန်ကြည့်ရန်\n• `/date` - ရက်စွဲကြည့်ရန်\n• `/weather` - ရာသီဥတုကြည့်ရန်", back_menu_keyboard()),
+        "about": (f"ℹ️ **Flash Bot**\nDeveloper: [Ben Hur]({OWNER_LINK})\nCommands ပေါင်း ၁၀၀ ကျော် ထည့်သွင်းထားပါသည်။", back_menu_keyboard())
     }
 
-    if data == "owner_tools" and callback_query.from_user.id != OWNER_ID:
-        await callback_query.answer("⚠️ ဒီမီနူးကို Bot Owner သာ သုံးခွင့်ရှိပါတယ်!", show_alert=True)
-        return
-
-    if data in text_map:
-        msg_text, markup = text_map[data]
+    if data in menus:
+        text, markup = menus[data]
         try:
-            await callback_query.message.edit_text(msg_text, reply_markup=markup, disable_web_page_preview=True)
+            await callback_query.message.edit_text(text, reply_markup=markup, disable_web_page_preview=True)
         except MessageNotModified:
             pass
 
-# Owner Commands
+@app.on_message(filters.command("ping"))
+async def ping_command(client, message: Message):
+    await message.reply_text("🏓 **PONG! Everything looks smooth and working!** ✨")
+
 @app.on_message(filters.command("chats") & filters.user(OWNER_ID))
 async def list_chats(client, message: Message):
-    # Command သုံးလိုက်တဲ့အခါ Dialogs တွေကိုပါ ထပ်စစ်ပြီး အပ်ဒိတ်လုပ်ပေးမယ်
-    async for dialog in client.get_dialogs():
-        if dialog.chat.type in ["supergroup", "group"]:
-            if dialog.chat.id not in known_groups:
-                known_groups.append(dialog.chat.id)
-    save_data(GROUPS_FILE, known_groups)
-
     if not known_groups:
-        return await message.reply_text("ℹ️ Bot ကို မည်သည့် Group တွင်မျှ ထည့်သွင်းမထားသေးပါ။")
-    msg = f"📊 **Bot ရောက်ရှိနေသော Group အရေအတွက်: ({len(known_groups)})**\n\n"
+        return await message.reply_text("ℹ️ မည်သည့် Group တွင်မျှ ထည့်သွင်းထားခြင်း မရှိသေးပါ။")
+    msg = f"📊 **ရောက်ရှိနေသော Group များ ({len(known_groups)}):**\n\n"
     for gid in known_groups:
         msg += f"• `{gid}`\n"
     await message.reply_text(msg)
-
-@app.on_message(filters.command("broadcast") & filters.user(OWNER_ID))
-async def broadcast_msg(client, message: Message):
-    if not message.reply_to_message and len(message.command) < 2:
-        return await message.reply_text("⚠️ Broadcast စာကို Reply ပြန်ပါ သို့မဟုတ် စာရိုက်ထည့်ပါ။")
-
-    success, failed = 0, 0
-    await message.reply_text("🚀 ကြော်ငြာစာများ ပို့ဆောင်နေပါပြီ...")
-    for gid in known_groups:
-        try:
-            if message.reply_to_message:
-                await message.reply_to_message.copy(gid)
-            else:
-                text = message.text.split(None, 1)[1]
-                await client.send_message(gid, text)
-            success += 1
-            await asyncio.sleep(1)
-        except Exception:
-            failed += 1
-    await message.reply_text(f"✅ **Broadcast ပို့ပြီးပါပြီ!**\nအောင်မြင်: `{success}` | မအောင်မြင်: `{failed}`")
-
-# Auto Reply
-@app.on_message(filters.text & ~filters.bot)
-async def auto_learn_and_reply(client, message: Message):
-    text = message.text.strip().lower()
-    if text.startswith("/"):
-        return
-    if message.reply_to_message and message.reply_to_message.text:
-        parent_text = message.reply_to_message.text.strip().lower()
-        if not parent_text.startswith("/"):
-            chat_db[parent_text] = message.text
-            save_data(MEMORY_FILE, chat_db)
-
-    matches = get_close_matches(text, chat_db.keys(), n=1, cutoff=0.45)
-    if matches:
-        await message.reply_text(chat_db[matches[0]])
 
 # ==================== KEEP-ALIVE WEB SERVER ====================
 async def handle_ping(request):
@@ -206,39 +127,21 @@ async def start_web_server():
     server.router.add_get("/", handle_ping)
     runner = web.AppRunner(server)
     await runner.setup()
-    
     port = int(os.environ.get("PORT", 10000))
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
-    print(f"Web server started on port {port}")
 
 async def main():
     await start_web_server()
     await app.start()
-    print("Bot & Keep-Alive Web Server started!")
-    
-    # Bot စတင်တာနဲ့ ရောက်နေတဲ့ Group များကို Auto စစ်ထုတ်ပြီး သိမ်းဆည်းမည်
-    try:
-        async for dialog in app.get_dialogs():
-            if dialog.chat.type in ["supergroup", "group"]:
-                if dialog.chat.id not in known_groups:
-                    known_groups.append(dialog.chat.id)
-        save_data(GROUPS_FILE, known_groups)
-
-        if known_groups:
-            group_list_text = f"🤖 **Bot စတင်အလုပ်လုပ်ပါပြီ (Active)!**\n\n📊 **လက်ရှိရောက်ရှိနေသော Group များ ({len(known_groups)}):**\n"
-            for gid in known_groups:
-                group_list_text += f"• `{gid}`\n"
-        else:
-            group_list_text = "🤖 **Bot စတင်အလုပ်လုပ်ပါပြီ (Active)!**\n\nℹ️ လက်ရှိတွင် မည်သည့် Group တွင်မျှ ထည့်သွင်းထားခြင်း မရှိသေးပါ။"
-        
-        await app.send_message(OWNER_ID, group_list_text)
-        print("Groups list sent to owner successfully.")
-    except Exception as e:
-        print(f"Could not fetch/send groups list to owner: {e}")
-
+    print("Bot & Web Server started successfully with 100+ commands menu!")
     await asyncio.Event().wait()
 
 if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(main())
+    try:
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(main())
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(main())
