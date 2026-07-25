@@ -4,7 +4,6 @@ import time
 import random
 import sqlite3
 import asyncio
-import psutil
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 
@@ -38,27 +37,22 @@ conn.commit()
 # SMART CONTEXT-MATCHING AUTO-CHAT ENGINE
 # =========================================
 def get_best_matching_reply(user_text: str):
-    """Member ပြောလိုက်သည့် စကားနှင့် အနီးစပ်ဆုံး သက်ဆိုင်ရာ စကားကို DB ထဲမှ ရှာပေးသည့် Engine"""
     cursor.execute("SELECT text FROM messages")
     all_msgs = [row[0] for row in cursor.fetchall()]
     
     if not all_msgs:
         return None
 
-    # စကားလုံးများကို ခွဲထုတ်ခြင်း (Split Words)
     user_words = [w.lower() for w in user_text.split() if len(w) > 1]
     
     if not user_words:
         return random.choice(all_msgs)
 
-    best_match = None
     max_matches = 0
     matched_candidates = []
 
-    # DB ထဲက စကားစုတစ်ခုချင်းစီနှင့် တူညီသည့် Keyword အေ​ရအတွက် စစ်ဆေးခြင်း
     for db_text in all_msgs:
         db_words = [w.lower() for w in db_text.split()]
-        # တူညီသည့် စကားလုံး အရေအတွက်ကို တွက်ချက်ခြင်း
         common_words = set(user_words).intersection(set(db_words))
         match_count = len(common_words)
         
@@ -68,11 +62,9 @@ def get_best_matching_reply(user_text: str):
         elif match_count == max_matches and match_count > 0:
             matched_candidates.append(db_text)
 
-    # အနီးစပ်ဆုံး ကိုက်ညီမှု ရှိပါက အဲဒီအထဲမှ ရွေးပေးမည်
     if matched_candidates and max_matches > 0:
         return random.choice(matched_candidates)
     
-    # တိုက်ရိုက် တူညီတာ မရှိရင် Random Selection သို့မဟုတ် သင့်တော်ရာ စကားပြန်ပေးမည်
     return random.choice(all_msgs)
 
 @app.on_message(filters.group & ~filters.me & filters.text, group=1)
@@ -80,7 +72,6 @@ async def auto_chat_engine(client: Client, message: Message):
     global LEARNING_ACTIVE, AUTO_REPLY_ACTIVE
     text = message.text.strip()
     
-    # 1. Member များ ပြောသော စကားများကို Memory ထဲ အလိုအလျောက် မှတ်ထားခြင်း
     if LEARNING_ACTIVE and not any(text.startswith(p) for p in PREFIX) and len(text) > 1:
         try:
             cursor.execute("INSERT OR IGNORE INTO messages (text) VALUES (?)", (text,))
@@ -88,13 +79,11 @@ async def auto_chat_engine(client: Client, message: Message):
         except Exception:
             pass
 
-    # 2. အနီးစပ်ဆုံး သက်ဆိုင်ရာ စကားကို ရှာပြီး အလိုအလျောက် ပြန်ပြောပေးခြင်း
     if AUTO_REPLY_ACTIVE and not any(text.startswith(p) for p in PREFIX):
-        # စကားပြောနှုန်း အချိုး (80% Response Rate)
         if random.random() < 0.8:
             reply_text = get_best_matching_reply(text)
             if reply_text:
-                await asyncio.sleep(1) # ပုံမှန် စကားပြောသလိုမျိုး ၁ စက္ကန့် စောင့်ပြီးမှ ပို့ပေးရန်
+                await asyncio.sleep(1)
                 await message.reply_text(reply_text)
 
 # =========================================
@@ -157,7 +146,7 @@ async def handle_callbacks(client: Client, callback: CallbackQuery):
     elif data == "menu_fun":
         await callback.message.edit_text("🎲 **Fun & Games Commands:**\n\n• `/dice` - Roll Dice\n• `/dart` - Play Dart\n• `/basketball` - Play Basketball\n• `/shout` - Shout Text\n• `/type` - Type Animation", reply_markup=back_keyboard())
     elif data == "menu_gen":
-        await callback.message.edit_text("🎈 **General & Utility Commands:**\n\n• `/ping` - Check Latency\n• `/sysinfo` - System Info\n• `/id` - Get User/Chat ID\n• `/info` - User Information\n• `/calc` - Calculator", reply_markup=back_keyboard())
+        await callback.message.edit_text("🎈 **General & Utility Commands:**\n\n• `/ping` - Check Latency\n• `/id` - Get User/Chat ID\n• `/info` - User Information\n• `/calc` - Calculator", reply_markup=back_keyboard())
     elif data == "menu_about":
         await callback.message.edit_text(f"ℹ️ **About & Support:**\n\n• **Owner ID:** `{OWNER_ID}`\n• Flash Bot v2.0\n• Powered by Smart Matching Engine.", reply_markup=back_keyboard())
     elif data == "menu_rules":
@@ -194,8 +183,5 @@ async def cmd_restart(c, m):
 # START BOT
 # =========================================
 if __name__ == "__main__":
-    print("---------------------------------------")
-    print("Smart Auto-Chat Bot Started!")
-    print(f"Owner ID: {OWNER_ID}")
-    print("---------------------------------------")
+    print("Bot is Running on Render...")
     app.run()
