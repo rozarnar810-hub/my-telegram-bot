@@ -3,20 +3,13 @@ import json
 import asyncio
 import sys
 
-# Python 3.14 အတွက် Event Loop အသစ်စတင်ပေးရန်
-try:
-    loop = asyncio.get_event_loop()
-except RuntimeError:
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-
 from aiohttp import web
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message, CallbackQuery
 
 API_ID = 31788996
 API_HASH = "0c6714a879b2b1abba75dc4526521ca8"
-BOT_TOKEN = "8934169613:AAF1EdweBLj3ZRD5FA1SLJkIWu0s8sBQssE"
+BOT_TOKEN = "8934169613:AAFFxJAJX4aUnSOCR2k4qa884ANqL7FjWQc"
 OWNER_ID = 7974865879
 OWNER_LINK = "https://t.me/Ben_Hur_212"
 
@@ -196,7 +189,6 @@ async def handle_ping(request):
     return web.Response(text="Bot is Alive & Running 24/7!")
 
 async def main():
-    # Web Server စတင်ရန်
     server = web.Application()
     server.router.add_get("/", handle_ping)
     runner = web.AppRunner(server)
@@ -205,10 +197,10 @@ async def main():
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
     
-    # Bot စတင်ရန်
     await app.start()
     print("Bot & Web Server started successfully!")
     await asyncio.Event().wait()
 
 if __name__ == "__main__":
+    loop = asyncio.get_event_loop()
     loop.run_until_complete(main())
