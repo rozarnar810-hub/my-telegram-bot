@@ -1,3 +1,5 @@
 pyrogram
 tgcrypto
-psutil
+pysocks
+pyaes
+aiohttp
