@@ -8,12 +8,12 @@ from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message, CallbackQuery
 from pyrogram.errors import MessageNotModified
 
-# Event Loop Fix for Python 3.14
+# ==================== PYTHON 3.14 EVENT LOOP FIX ====================
 try:
-    asyncio.get_running_loop()
+    loop = asyncio.get_event_loop()
 except RuntimeError:
-    asyncio.set_event_loop(asyncio.new_event_loop())
-
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
 # ==================== CONFIGURATION ====================
 API_ID = 31788996
 API_HASH = "0c6714a879b2b1abba75dc4526521ca8"
