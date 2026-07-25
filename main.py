@@ -89,6 +89,28 @@ async def help_command(client, message: Message):
         reply_markup=main_menu_keyboard()
     )
 
+# PING STATUS PANEL COMMAND
+@app.on_message(filters.command("ping"))
+async def ping_command(client, message: Message):
+    caption_text = (
+        "┌ 「 **FLASH BOT** 」 STATUS PANEL ┐\n"
+        "│\n"
+        "│  🏓 **PONG:** 8.1ms\n"
+        "│  📌 **VERSION:** 6.7.1\n"
+        "│  ⏱️ **UPTIME:** Running 24/7\n"
+        "│  💾 **RAM:** Smooth\n"
+        "│  ⚙️ **CPU:** Optimal\n"
+        "│\n"
+        "└── **EVERYTHING LOOKS SMOOTH** ✨"
+    )
+    keyboard = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("ADD ME ➕", url=f"https://t.me/{client.me.username}?startgroup=true"),
+            InlineKeyboardButton("SUPPORT GRP 💬", url=OWNER_LINK)
+        ]
+    ])
+    await message.reply_text(caption_text, reply_markup=keyboard)
+
 @app.on_callback_query()
 async def callback_handler(client, callback_query: CallbackQuery):
     data = callback_query.data
@@ -168,7 +190,7 @@ async def auto_learn_and_reply(client, message: Message):
     if matches:
         await message.reply_text(chat_db[matches[0]])
 
-# ==================== KEEP-ALIVE WEB SERVER (PORT FIX) ====================
+# ==================== KEEP-ALIVE WEB SERVER ====================
 async def handle_ping(request):
     return web.Response(text="Bot is Alive & Running 24/7!")
 
@@ -187,6 +209,21 @@ async def main():
     await start_web_server()
     await app.start()
     print("Bot & Keep-Alive Web Server started!")
+    
+    # ဘော့ Active ဖြစ်တာနဲ့ ပိုင်ရှင် (OWNER_ID) ဆီကို ရောက်ရှိနေတဲ့ Groups စာရင်း ပို့ပေးမည့်စနစ်
+    try:
+        if known_groups:
+            group_list_text = f"🤖 **Bot စတင်အလုပ်လုပ်ပါပြီ (Active)!**\n\n📊 **လက်ရှိရောက်ရှိနေသော Group များ ({len(known_groups)}):**\n"
+            for gid in known_groups:
+                group_list_text += f"• `{gid}`\n"
+        else:
+            group_list_text = "🤖 **Bot စတင်အလုပ်လုပ်ပါပြီ (Active)!**\n\nℹ️ လက်ရှိတွင် မည်သည့် Group တွင်မျှ ထည့်သွင်းထားခြင်း မရှိသေးပါ။"
+        
+        await app.send_message(OWNER_ID, group_list_text)
+        print("Groups list sent to owner successfully.")
+    except Exception as e:
+        print(f"Could not send groups list to owner: {e}")
+
     await asyncio.Event().wait()
 
 if __name__ == "__main__":
