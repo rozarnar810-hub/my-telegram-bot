@@ -3,7 +3,7 @@ import json
 import asyncio
 import sys
 
-# Event Loop ကို အစောဆုံး သတ်မှတ်ပေးခြင်း
+# Event Loop သတ်မှတ်ခြင်း
 try:
     loop = asyncio.get_event_loop()
 except RuntimeError:
@@ -196,6 +196,7 @@ async def handle_ping(request):
     return web.Response(text="Bot is Alive & Running 24/7!")
 
 async def main():
+    # Web Server စတင်ခြင်း
     server = web.Application()
     server.router.add_get("/", handle_ping)
     runner = web.AppRunner(server)
@@ -204,8 +205,11 @@ async def main():
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
     
+    # Pyrogram Bot ကိုပါ တစ်ပြိုင်တည်း စတင်ခြင်း
     await app.start()
     print("Bot & Web Server started successfully!")
+    
+    # ဇာစ်မြစ်အမြဲအလုပ်လုပ်ရန် ယာယီ Loop ထားရှိခြင်း
     await asyncio.Event().wait()
 
 if __name__ == "__main__":
