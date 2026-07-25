@@ -1,9 +1,16 @@
+import asyncio
+
+# Python 3.14+ Render Event Loop Fix (ဒါမှ မတက်တော့မှာပါ)
+try:
+    asyncio.get_running_loop()
+except RuntimeError:
+    asyncio.set_event_loop(asyncio.new_event_loop())
+
 import os
 import sys
 import time
 import random
 import sqlite3
-import asyncio
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 
@@ -17,7 +24,7 @@ OWNER_ID = 7974865879
 PREFIX = ["/", "."]
 
 app = Client(
-    name="myuserbot",
+    "flash_bot_session",
     api_id=API_ID,
     api_hash=API_HASH,
     bot_token=BOT_TOKEN
@@ -37,35 +44,38 @@ conn.commit()
 # SMART CONTEXT-MATCHING AUTO-CHAT ENGINE
 # =========================================
 def get_best_matching_reply(user_text: str):
-    cursor.execute("SELECT text FROM messages")
-    all_msgs = [row[0] for row in cursor.fetchall()]
-    
-    if not all_msgs:
-        return None
-
-    user_words = [w.lower() for w in user_text.split() if len(w) > 1]
-    
-    if not user_words:
-        return random.choice(all_msgs)
-
-    max_matches = 0
-    matched_candidates = []
-
-    for db_text in all_msgs:
-        db_words = [w.lower() for w in db_text.split()]
-        common_words = set(user_words).intersection(set(db_words))
-        match_count = len(common_words)
+    try:
+        cursor.execute("SELECT text FROM messages")
+        all_msgs = [row[0] for row in cursor.fetchall()]
         
-        if match_count > max_matches:
-            max_matches = match_count
-            matched_candidates = [db_text]
-        elif match_count == max_matches and match_count > 0:
-            matched_candidates.append(db_text)
+        if not all_msgs:
+            return None
 
-    if matched_candidates and max_matches > 0:
-        return random.choice(matched_candidates)
-    
-    return random.choice(all_msgs)
+        user_words = [w.lower() for w in user_text.split() if len(w) > 1]
+        
+        if not user_words:
+            return random.choice(all_msgs)
+
+        max_matches = 0
+        matched_candidates = []
+
+        for db_text in all_msgs:
+            db_words = [w.lower() for w in db_text.split()]
+            common_words = set(user_words).intersection(set(db_words))
+            match_count = len(common_words)
+            
+            if match_count > max_matches:
+                max_matches = match_count
+                matched_candidates = [db_text]
+            elif match_count == max_matches and match_count > 0:
+                matched_candidates.append(db_text)
+
+        if matched_candidates and max_matches > 0:
+            return random.choice(matched_candidates)
+        
+        return random.choice(all_msgs)
+    except Exception:
+        return None
 
 @app.on_message(filters.group & ~filters.me & filters.text, group=1)
 async def auto_chat_engine(client: Client, message: Message):
@@ -174,14 +184,8 @@ async def cmd_ping(c, m):
     start = time.time(); msg = await m.reply_text("`Pinging...`")
     await msg.edit_text(f"🏓 **Pong!** `{int((time.time() - start) * 1000)}ms`")
 
-@app.on_message(filters.command("restart", prefixes=PREFIX) & filters.user(OWNER_ID))
-async def cmd_restart(c, m):
-    await m.reply_text("🔄 Restarting Bot...")
-    os.execl(sys.executable, sys.executable, *sys.argv)
-
 # =========================================
 # START BOT
 # =========================================
 if __name__ == "__main__":
-    print("Bot is Running on Render...")
     app.run()
