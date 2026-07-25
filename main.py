@@ -46,7 +46,7 @@ known_groups = load_data(GROUPS_FILE)
 if not isinstance(known_groups, list):
     known_groups = []
 
-# Track Groups
+# Track Groups (Real-time tracking when active in group)
 @app.on_message(filters.group, group=-1)
 async def track_groups(client, message: Message):
     if message.chat.id not in known_groups:
@@ -147,6 +147,13 @@ async def callback_handler(client, callback_query: CallbackQuery):
 # Owner Commands
 @app.on_message(filters.command("chats") & filters.user(OWNER_ID))
 async def list_chats(client, message: Message):
+    # Command သုံးလိုက်တဲ့အခါ Dialogs တွေကိုပါ ထပ်စစ်ပြီး အပ်ဒိတ်လုပ်ပေးမယ်
+    async for dialog in client.get_dialogs():
+        if dialog.chat.type in ["supergroup", "group"]:
+            if dialog.chat.id not in known_groups:
+                known_groups.append(dialog.chat.id)
+    save_data(GROUPS_FILE, known_groups)
+
     if not known_groups:
         return await message.reply_text("ℹ️ Bot ကို မည်သည့် Group တွင်မျှ ထည့်သွင်းမထားသေးပါ။")
     msg = f"📊 **Bot ရောက်ရှိနေသော Group အရေအတွက်: ({len(known_groups)})**\n\n"
@@ -210,8 +217,14 @@ async def main():
     await app.start()
     print("Bot & Keep-Alive Web Server started!")
     
-    # ဘော့ Active ဖြစ်တာနဲ့ ပိုင်ရှင် (OWNER_ID) ဆီကို ရောက်ရှိနေတဲ့ Groups စာရင်း ပို့ပေးမည့်စနစ်
+    # Bot စတင်တာနဲ့ ရောက်နေတဲ့ Group များကို Auto စစ်ထုတ်ပြီး သိမ်းဆည်းမည်
     try:
+        async for dialog in app.get_dialogs():
+            if dialog.chat.type in ["supergroup", "group"]:
+                if dialog.chat.id not in known_groups:
+                    known_groups.append(dialog.chat.id)
+        save_data(GROUPS_FILE, known_groups)
+
         if known_groups:
             group_list_text = f"🤖 **Bot စတင်အလုပ်လုပ်ပါပြီ (Active)!**\n\n📊 **လက်ရှိရောက်ရှိနေသော Group များ ({len(known_groups)}):**\n"
             for gid in known_groups:
@@ -222,7 +235,7 @@ async def main():
         await app.send_message(OWNER_ID, group_list_text)
         print("Groups list sent to owner successfully.")
     except Exception as e:
-        print(f"Could not send groups list to owner: {e}")
+        print(f"Could not fetch/send groups list to owner: {e}")
 
     await asyncio.Event().wait()
 
