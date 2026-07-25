@@ -12,7 +12,6 @@ if sys.version_info >= (3, 14):
 from aiohttp import web
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message, CallbackQuery
-from pyrogram.enums import ChatType
 
 API_ID = 31788996
 API_HASH = "0c6714a879b2b1abba75dc4526521ca8"
@@ -23,24 +22,44 @@ OWNER_LINK = "https://t.me/Ben_Hur_212"
 app = Client("flash_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 GROUPS_FILE = "groups_list.json"
 
+# ==================== PERSISTENT GROUP STORAGE ====================
 def load_groups():
     if os.path.exists(GROUPS_FILE):
         try:
             with open(GROUPS_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
+                data = json.load(f)
+                if isinstance(data, list):
+                    return data
         except Exception:
             return []
     return []
 
 def save_groups(data):
-    with open(GROUPS_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
+    try:
+        with open(GROUPS_FILE, "w", encoding="utf-8") as f:
+            json.dump(list(set(data)), f, ensure_ascii=False, indent=4)
+    except Exception:
+        pass
 
 known_groups = load_groups()
 
-# ==================== AUTO GROUP TRACKING ====================
+# ဘော့ ပြန်ပွင့်လာတာနဲ့ သိမ်းထားသမျှ ဂရုများကို တန်းတင်ပေးရန်
+@app.on_raw_update()
+async def raw_updates_handler(client, update, users, chats):
+    global known_groups
+    updated = False
+    for chat_id in chats:
+        real_id = -int(f"-100{chat_id}") if chat_id > 0 else -chat_id
+        # Supergroups & Groups ID handling
+        for g_id in [chat_id, -chat_id, int(f"-100{chat_id}")]:
+            if g_id not in known_groups and g_id < 0:
+                known_groups.append(g_id)
+                updated = True
+    if updated:
+        save_groups(known_groups)
+
 @app.on_message(filters.group & ~filters.private, group=-1)
-async def auto_track_groups(client, message: Message):
+async def track_groups_msg(client, message: Message):
     chat_id = message.chat.id
     if chat_id not in known_groups:
         known_groups.append(chat_id)
@@ -74,8 +93,8 @@ async def start_command(client, message: Message):
 async def callback_handler(client, callback_query: CallbackQuery):
     data = callback_query.data
     menus = {
-        "m_owner": ("👑 **ပိုင်ရှင်သုံး Commands များ:**\n\n• `/broadcast [စာ]` - ဂရုအားလုံးသို့ စာမရေးခိုင်းဘဲ အော်တိုကြော်ငြာပို့ရန်\n• `/chats` - ဘော့ရောက်နေသော ဂရုစာရင်းကြည့်ရန်\n• `/stats` - စာရင်းအင်းကြည့်ရန်", back_kb()),
-        "m_admin": ("🛠️ **Admin Commands များ:**\n\n• `/ban` - အဖွဲ့ဝင်ထုတ်ရန် (Reply လုပ်၍)\n• `/unban` - ပိတ်ပင်မှုဖြုတ်ရန်\n• `/mute` - စာမရေးရအောင်ပိတ်ရန်\n• `/unmute` - စာရေးခွင့်ပေးရန်\n• `/pin` - မက်ဆေ့ဂျ်ချိတ်ရန်\n• `/kick` - ကန်ထုတ်ရန်", back_kb()),
+        "m_owner": ("👑 **ပိုင်ရှင်သုံး Commands များ:**\n\n• `/broadcast [စာ]` - ဂရုအားလုံးသို့ အော်တိုကြော်ငြာပို့ရန်\n• `/chats` - ဘော့ရောက်နေသော ဂရုစာရင်းကြည့်ရန်\n• `/stats` - စာရင်းအင်းကြည့်ရန်", back_kb()),
+        "m_admin": ("🛠️ **Admin Commands များ:**\n\n• `/ban` - အဖွဲ့ဝင်ထုတ်ရန်\n• `/unban` - ပိတ်ပင်မှုဖြုတ်ရန်\n• `/mute` - စာမရေးရအောင်ပိတ်ရန်\n• `/unmute` - စာရေးခွင့်ပေးရန်\n• `/pin` - မက်ဆေ့ဂျ်ချိတ်ရန်\n• `/kick` - ကန်ထုတ်ရန်", back_kb()),
         "m_tools": ("🧹 **Cleaner & Tools:**\n\n• `/del` - စာဖျက်ရန်\n• `/id` - ID စစ်ရန်", back_kb()),
         "m_general": ("🎈 **အထွေထွေ Commands များ:**\n\n• `/ping` - အမြန်နှုန်းစစ်ရန်", back_kb()),
         "main_menu": ("🤖 **မင်္ဂလာပါ! အောက်ပါ Button များကို နှိပ်ပြီး အသုံးပြုနိုင်ပါပြီ:**", main_menu_keyboard())
@@ -108,7 +127,6 @@ async def stats_cmd(client, message: Message):
 
 @app.on_message(filters.command("broadcast") & filters.user(OWNER_ID))
 async def broadcast_cmd(client, message: Message):
-    # စာမရေးဘဲ အော်တိုကြော်ငြာပို့ရန်အတွက် Reply ပေးထားသော စာ (သို့မဟုတ်) ရေးထားသော စာကို ယူမည်
     text = ""
     if message.reply_to_message:
         text = message.reply_to_message.text or message.reply_to_message.caption
@@ -116,7 +134,7 @@ async def broadcast_cmd(client, message: Message):
         text = message.text.split(None, 1)[1]
     
     if not text:
-        return await message.reply_text("⚠️ ကြော်ငြာပို့ရန် စာသားထည့်ပါ သို့မဟုတ် ကြော်ငြာမက်ဆေ့ဂျ်ကို Reply လုပ်ပြီး `/broadcast` ဟု ရေးပါ။")
+        return await message.reply_text("⚠️ ကြော်ငြာပို့ရန် စာသားထည့်ပါ သို့မဟုတ် ပို့လိုသောစာကို Reply လုပ်ပြီး `/broadcast` ဟု ရေးပါ။")
     
     success = 0
     failed = 0
