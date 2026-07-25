@@ -1,17 +1,6 @@
-import asyncio
-try:
-    asyncio.get_event_loop()
-except RuntimeError:
-    asyncio.set_event_loop(asyncio.new_event_loop())
-
-import os
-from aiohttp import web
-from pyrogram import Client, filters
-# ကျန်တဲ့ code များကို ဆက်ရေးပါ...
 import os
 import json
 import asyncio
-import random
 from datetime import datetime
 from difflib import get_close_matches
 from aiohttp import web
@@ -19,7 +8,7 @@ from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message, CallbackQuery
 from pyrogram.errors import MessageNotModified
 
-# Event Loop Fix
+# Event Loop Fix for Python 3.14
 try:
     asyncio.get_running_loop()
 except RuntimeError:
@@ -189,7 +178,6 @@ async def start_web_server():
     runner = web.AppRunner(server)
     await runner.setup()
     
-    # Render Port Configuration (Default: 10000)
     port = int(os.environ.get("PORT", 10000))
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
