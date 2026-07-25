@@ -12,6 +12,7 @@ if sys.version_info >= (3, 14):
 from aiohttp import web
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message, CallbackQuery
+from pyrogram.enums import ChatType
 
 API_ID = 31788996
 API_HASH = "0c6714a879b2b1abba75dc4526521ca8"
@@ -37,12 +38,24 @@ def save_groups(data):
 
 known_groups = load_groups()
 
-@app.on_message(filters.group, group=-1)
-async def track_groups(client, message: Message):
-    if message.chat.id not in known_groups:
-        known_groups.append(message.chat.id)
+# ==================== AUTO GROUP TRACKING ====================
+@app.on_message(filters.group & ~filters.private, group=-1)
+async def auto_track_groups(client, message: Message):
+    chat_id = message.chat.id
+    if chat_id not in known_groups:
+        known_groups.append(chat_id)
         save_groups(known_groups)
 
+@app.on_chat_member_updated(group=-2)
+async def track_bot_added(client, chat_member_updated):
+    if chat_member_updated.new_chat_member:
+        if chat_member_updated.new_chat_member.user.id == (await client.get_me()).id:
+            chat_id = chat_member_updated.chat.id
+            if chat_id not in known_groups:
+                known_groups.append(chat_id)
+                save_groups(known_groups)
+
+# ==================== MENUS ====================
 def main_menu_keyboard():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("👑 ပိုင်ရှင်သုံး မီနူး", callback_data="m_owner"), InlineKeyboardButton("🛠️ Admin မီနူး", callback_data="m_admin")],
@@ -61,10 +74,10 @@ async def start_command(client, message: Message):
 async def callback_handler(client, callback_query: CallbackQuery):
     data = callback_query.data
     menus = {
-        "m_owner": ("👑 **ပိုင်ရှင်သုံး Commands များ:**\n\n• `/broadcast [စာ]` - အားလုံးသို့ စာပို့ရန်\n• `/chats` - ဘော့ရောက်နေသော ဂရုစာရင်းကြည့်ရန်\n• `/stats` - စာရင်းအင်းကြည့်ရန်", back_kb()),
+        "m_owner": ("👑 **ပိုင်ရှင်သုံး Commands များ:**\n\n• `/broadcast [စာ]` - ဂရုအားလုံးသို့ စာမရေးခိုင်းဘဲ အော်တိုကြော်ငြာပို့ရန်\n• `/chats` - ဘော့ရောက်နေသော ဂရုစာရင်းကြည့်ရန်\n• `/stats` - စာရင်းအင်းကြည့်ရန်", back_kb()),
         "m_admin": ("🛠️ **Admin Commands များ:**\n\n• `/ban` - အဖွဲ့ဝင်ထုတ်ရန် (Reply လုပ်၍)\n• `/unban` - ပိတ်ပင်မှုဖြုတ်ရန်\n• `/mute` - စာမရေးရအောင်ပိတ်ရန်\n• `/unmute` - စာရေးခွင့်ပေးရန်\n• `/pin` - မက်ဆေ့ဂျ်ချိတ်ရန်\n• `/kick` - ကန်ထုတ်ရန်", back_kb()),
-        "m_tools": ("🧹 **Cleaner & Tools:**\n\n• `/del` - စာဖျက်ရန်\n• `/purge` - အများအပြားရှင်းရန်\n• `/id` - ID စစ်ရန်", back_kb()),
-        "m_general": ("🎈 **အထွေထွေ Commands များ:**\n\n• `/ping` - အမြန်နှုန်းစစ်ရန်\n• `/time` - အချိန်ကြည့်ရန်", back_kb()),
+        "m_tools": ("🧹 **Cleaner & Tools:**\n\n• `/del` - စာဖျက်ရန်\n• `/id` - ID စစ်ရန်", back_kb()),
+        "m_general": ("🎈 **အထွေထွေ Commands များ:**\n\n• `/ping` - အမြန်နှုန်းစစ်ရန်", back_kb()),
         "main_menu": ("🤖 **မင်္ဂလာပါ! အောက်ပါ Button များကို နှိပ်ပြီး အသုံးပြုနိုင်ပါပြီ:**", main_menu_keyboard())
     }
     if data in menus:
@@ -80,19 +93,13 @@ async def callback_handler(client, callback_query: CallbackQuery):
 async def ping_cmd(client, message: Message):
     await message.reply_text("🏓 **PONG! Bot is running smoothly!** ✨")
 
-@app.on_message(filters.command("id"))
-async def id_cmd(client, message: Message):
-    usr = message.from_user
-    chat = message.chat
-    await message.reply_text(f"👤 **Your ID:** `{usr.id}`\n💬 **Chat ID:** `{chat.id}`")
-
 @app.on_message(filters.command("chats") & filters.user(OWNER_ID))
 async def chats_cmd(client, message: Message):
     if not known_groups:
-        return await message.reply_text("ℹ️ မည်သည့် Group တွင်မျှ ထည့်သွင်းထားခြင်း မရှိသေးပါ။ (သို့မဟုတ် Group ထဲတွင် စာတစ်ကြောင်းလောက် ရေးခိုင်းပါ)")
-    msg = f"📊 **ဘော့ရောက်ရှိနေသော Group စစာရင်း ({len(known_groups)}):**\n\n"
+        return await message.reply_text("ℹ️ မည်သည့် Group တွင်မျှ ထည့်သွင်းထားခြင်း မရှိသေးပါ။")
+    msg = f"📊 **ဘော့ရောက်ရှိနေသော Group စာရင်း ({len(known_groups)}):**\n\n"
     for gid in known_groups:
-        msg += f"• `{-gid if gid < 0 else gid}` (ID: `{gid}`)\n"
+        msg += f"• ID: `{gid}`\n"
     await message.reply_text(msg)
 
 @app.on_message(filters.command("stats") & filters.user(OWNER_ID))
@@ -101,17 +108,30 @@ async def stats_cmd(client, message: Message):
 
 @app.on_message(filters.command("broadcast") & filters.user(OWNER_ID))
 async def broadcast_cmd(client, message: Message):
-    if len(message.command) < 2:
-        return await message.reply_text("⚠️ ပို့လိုသည့် စာသားကို ထည့်ပါ။ ဥပမာ: `/broadcast မင်္ဂလာပါ`")
-    text = message.text.split(None, 1)[1]
+    # စာမရေးဘဲ အော်တိုကြော်ငြာပို့ရန်အတွက် Reply ပေးထားသော စာ (သို့မဟုတ်) ရေးထားသော စာကို ယူမည်
+    text = ""
+    if message.reply_to_message:
+        text = message.reply_to_message.text or message.reply_to_message.caption
+    elif len(message.command) > 1:
+        text = message.text.split(None, 1)[1]
+    
+    if not text:
+        return await message.reply_text("⚠️ ကြော်ငြာပို့ရန် စာသားထည့်ပါ သို့မဟုတ် ကြော်ငြာမက်ဆေ့ဂျ်ကို Reply လုပ်ပြီး `/broadcast` ဟု ရေးပါ။")
+    
     success = 0
+    failed = 0
     for gid in known_groups:
         try:
-            await client.send_message(gid, text)
+            if message.reply_to_message:
+                await message.reply_to_message.copy(gid)
+            else:
+                await client.send_message(gid, text)
             success += 1
+            await asyncio.sleep(0.3)
         except Exception:
-            pass
-    await message.reply_text(f"✅ Group ပေါင်း {success} ခုသို့ ပို့ပြီးပါပြီ။")
+            failed += 1
+            
+    await message.reply_text(f"✅ **ကြော်ငြာပို့ပြီးပါပြီ!**\n\n• အောင်မြင်သော ဂရု: `{success}` ခု\n• မအောင်မြင်သည်: `{failed}` ခု")
 
 @app.on_message(filters.command("del") & filters.group)
 async def del_cmd(client, message: Message):
@@ -146,14 +166,6 @@ async def mute_cmd(client, message: Message):
         from pyrogram.types import ChatPermissions
         await client.restrict_chat_member(message.chat.id, user_id, ChatPermissions(can_send_messages=False))
         await message.reply_text("🔇 စာမရေးရအောင် ပိတ်လိုက်ပါပြီ။")
-
-@app.on_message(filters.command("unmute") & filters.group)
-async def unmute_cmd(client, message: Message):
-    if message.reply_to_message:
-        user_id = message.reply_to_message.from_user.id
-        from pyrogram.types import ChatPermissions
-        await client.restrict_chat_member(message.chat.id, user_id, ChatPermissions(can_send_messages=True, can_send_media_messages=True, can_send_other_messages=True))
-        await message.reply_text("🔊 စာရေးခွင့် ပြန်ပေးလိုက်ပါပြီ။")
 
 @app.on_message(filters.command("kick") & filters.group)
 async def kick_cmd(client, message: Message):
