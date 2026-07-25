@@ -1,191 +1,173 @@
-import asyncio
-
-# Python 3.14+ Render Event Loop Fix (ဒါမှ မတက်တော့မှာပါ)
-try:
-    asyncio.get_running_loop()
-except RuntimeError:
-    asyncio.set_event_loop(asyncio.new_event_loop())
-
 import os
-import sys
-import time
-import random
-import sqlite3
+import json
+from difflib import get_close_matches
 from pyrogram import Client, filters
-from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message, CallbackQuery
 
-# =========================================
-# CONFIGURATION
-# =========================================
+# ==================== CONFIGURATION ====================
 API_ID = 31788996
 API_HASH = "0c6714a879b2b1abba75dc4526521ca8"
 BOT_TOKEN = "8934169613:AAF1EdweBLj3ZRD5FA1SLJkIWu0s8sBQssE"
 OWNER_ID = 7974865879
-PREFIX = ["/", "."]
 
-app = Client(
-    "flash_bot_session",
-    api_id=API_ID,
-    api_hash=API_HASH,
-    bot_token=BOT_TOKEN
-)
+app = Client("flash_bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
-START_TIME = time.time()
-LEARNING_ACTIVE = True
-AUTO_REPLY_ACTIVE = True
+MEMORY_FILE = "chat_memory.json"
 
-# Database Setup
-conn = sqlite3.connect("chat_memory.db", check_same_thread=False)
-cursor = conn.cursor()
-cursor.execute("CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY AUTOINCREMENT, text TEXT UNIQUE)")
-conn.commit()
-
-# =========================================
-# SMART CONTEXT-MATCHING AUTO-CHAT ENGINE
-# =========================================
-def get_best_matching_reply(user_text: str):
-    try:
-        cursor.execute("SELECT text FROM messages")
-        all_msgs = [row[0] for row in cursor.fetchall()]
-        
-        if not all_msgs:
-            return None
-
-        user_words = [w.lower() for w in user_text.split() if len(w) > 1]
-        
-        if not user_words:
-            return random.choice(all_msgs)
-
-        max_matches = 0
-        matched_candidates = []
-
-        for db_text in all_msgs:
-            db_words = [w.lower() for w in db_text.split()]
-            common_words = set(user_words).intersection(set(db_words))
-            match_count = len(common_words)
-            
-            if match_count > max_matches:
-                max_matches = match_count
-                matched_candidates = [db_text]
-            elif match_count == max_matches and match_count > 0:
-                matched_candidates.append(db_text)
-
-        if matched_candidates and max_matches > 0:
-            return random.choice(matched_candidates)
-        
-        return random.choice(all_msgs)
-    except Exception:
-        return None
-
-@app.on_message(filters.group & ~filters.me & filters.text, group=1)
-async def auto_chat_engine(client: Client, message: Message):
-    global LEARNING_ACTIVE, AUTO_REPLY_ACTIVE
-    text = message.text.strip()
-    
-    if LEARNING_ACTIVE and not any(text.startswith(p) for p in PREFIX) and len(text) > 1:
+# ==================== CHAT MEMORY SYSTEM ====================
+def load_memory():
+    if os.path.exists(MEMORY_FILE):
         try:
-            cursor.execute("INSERT OR IGNORE INTO messages (text) VALUES (?)", (text,))
-            conn.commit()
+            with open(MEMORY_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
         except Exception:
-            pass
+            return {}
+    return {}
 
-    if AUTO_REPLY_ACTIVE and not any(text.startswith(p) for p in PREFIX):
-        if random.random() < 0.8:
-            reply_text = get_best_matching_reply(text)
-            if reply_text:
-                await asyncio.sleep(1)
-                await message.reply_text(reply_text)
+def save_memory(data):
+    with open(MEMORY_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=4)
 
-# =========================================
-# INLINE BUTTONS MENU UI
-# =========================================
-def main_help_keyboard():
+chat_db = load_memory()
+
+# ==================== BUTTON KEYBOARDS ====================
+def main_menu_keyboard():
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("👑 Owner Tools", callback_data="menu_owner"),
-            InlineKeyboardButton("📢 Tag & Mention", callback_data="menu_tag")
+            InlineKeyboardButton("👑 ပိုင်ရှင်သုံး မီနူး", callback_data="owner_tools"),
+            InlineKeyboardButton("📢 Tag & Mention", callback_data="tag_mention")
         ],
         [
-            InlineKeyboardButton("🛡 Group Security", callback_data="menu_sec"),
-            InlineKeyboardButton("🛠 Admin Tools", callback_data="menu_admin")
+            InlineKeyboardButton("🛡️ Group လုံခြုံရေး", callback_data="group_sec"),
+            InlineKeyboardButton("🛠️ Admin မီနူး", callback_data="admin_tools")
         ],
         [
-            InlineKeyboardButton("🧹 Cleaner & Night", callback_data="menu_cleaner"),
-            InlineKeyboardButton("🎨 AI & Media", callback_data="menu_ai")
+            InlineKeyboardButton("🧹 Cleaner & Night", callback_data="cleaner"),
+            InlineKeyboardButton("🎨 AI & မီဒီယာ", callback_data="ai_media")
         ],
         [
-            InlineKeyboardButton("🎲 Fun & Games", callback_data="menu_fun"),
-            InlineKeyboardButton("🎈 General & Utility", callback_data="menu_gen")
+            InlineKeyboardButton("🎲 ပျော်စရာဂိမ်းများ", callback_data="fun_games"),
+            InlineKeyboardButton("🎈 အထွေထွေ မီနူး", callback_data="general")
         ],
         [
-            InlineKeyboardButton("ℹ️ About & Support", callback_data="menu_about"),
-            InlineKeyboardButton("📜 Rules & Policy", callback_data="menu_rules")
+            InlineKeyboardButton("ℹ️ ဘော့အကြောင်း", callback_data="about"),
+            InlineKeyboardButton("📜 စည်းကမ်းချက်များ", callback_data="rules")
         ]
     ])
 
-def back_keyboard():
-    return InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔙 Back to Menu", callback_data="menu_main")]
-    ])
+# ==================== COMMAND HANDLERS ====================
+@app.on_message(filters.command(["start", "help"]))
+async def help_command(client, message: Message):
+    await message.reply_text(
+        "🤖 **မင်္ဂလာပါဗျာ! အောက်ပါ Button လေးတွေကို နှိပ်ပြီး Commands များကို ကြည့်ရှုနိုင်ပါတယ်:**",
+        reply_markup=main_menu_keyboard()
+    )
 
-# =========================================
-# HELP MENU & CALLBACKS
-# =========================================
-@app.on_message(filters.command("help", prefixes=PREFIX))
-async def help_command(client: Client, message: Message):
-    await message.reply_text("🤖 **Bot Help Menu - အမျိုးအစား ရွေးချယ်ပါ:**", reply_markup=main_help_keyboard())
-
+# ==================== BUTTON CALLBACK HANDLER ====================
 @app.on_callback_query()
-async def handle_callbacks(client: Client, callback: CallbackQuery):
-    data = callback.data
+async def callback_handler(client, callback_query: CallbackQuery):
+    data = callback_query.data
+    back_button = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 နောက်သို့", callback_data="main_menu")]])
+
+    if data == "main_menu":
+        await callback_query.message.edit_text(
+            "🤖 **မင်္ဂလာပါဗျာ! အောက်ပါ Button လေးတွေကို နှိပ်ပြီး Commands များကို ကြည့်ရှုနိုင်ပါတယ်:**",
+            reply_markup=main_menu_keyboard()
+        )
+    elif data == "owner_tools":
+        if callback_query.from_user.id != OWNER_ID:
+            await callback_query.answer("⚠️ ဒီမီနူးကို Bot Owner သာ သုံးခွင့်ရှိပါတယ်!", show_alert=True)
+            return
+        await callback_query.message.edit_text(
+            "👑 **ပိုင်ရှင်သုံး Commands များ:**\n\n"
+            "• `/broadcast` - မန်ဘာများ/Group များသို့ စာလှမ်းပို့ရန်\n"
+            "• `/restart` - Bot ကို ပြန်စတင်ရန်",
+            reply_markup=back_button
+        )
+    elif data == "tag_mention":
+        await callback_query.message.edit_text(
+            "📢 **Tag & Mention Commands များ:**\n\n"
+            "• `/all` [စာ] - Group မန်ဘာအားလုံးကို Tag ခေါ်ရန်\n"
+            "• `/cancel` - Tag ခေါ်နေတာကို ရပ်တန့်ရန်",
+            reply_markup=back_button
+        )
+    elif data == "admin_tools":
+        await callback_query.message.edit_text(
+            "🛠️ **Admin Commands များ:**\n\n"
+            "• `/ban` - မန်ဘာကို Ban ရန်\n"
+            "• `/unban` - Ban ဖြုတ်ရန်\n"
+            "• `/mute` - မန်ဘာ စာရေးခွင့် ပိတ်ရန်\n"
+            "• `/unmute` - စာရေးခွင့် ပြန်ဖွင့်ရန်\n"
+            "• `/pin` - စာကို Pin ချိတ်ရန်",
+            reply_markup=back_button
+        )
+    elif data == "group_sec":
+        await callback_query.message.edit_text(
+            "🛡️ **Group လုံခြုံရေး:**\n\n"
+            "• Spambot နဲ့ Link များ ပို့ပါက အလိုအလျောက် တားဆီးပေးမည်။",
+            reply_markup=back_button
+        )
+    elif data == "cleaner":
+        await callback_query.message.edit_text(
+            "🧹 **Cleaner Commands:**\n\n"
+            "• `/purge` - စာအများအပြား ဖျက်ရန်\n"
+            "• `/del` - Reply ပြန်ထားသော စာကို ဖျက်ရန်",
+            reply_markup=back_button
+        )
+    elif data == "ai_media":
+        await callback_query.message.edit_text(
+            "🎨 **AI & မီဒီယာ:**\n\n"
+            "• စကားပြောပါက AI ဖြင့် မေးခွန်းများကို အလိုအလျောက် ပြန်လည်ဖြေကြားပေးပါမည်။",
+            reply_markup=back_button
+        )
+    elif data == "fun_games":
+        await callback_query.message.edit_text(
+            "🎲 **ပျော်စရာဂိမ်းများ:**\n\n"
+            "• `/dice` - အန်စာတုံး ပစ်ရန်\n"
+            "• `/dart` - မြားပစ်ရန်",
+            reply_markup=back_button
+        )
+    elif data == "general":
+        await callback_query.message.edit_text(
+            "🎈 **အထွေထွေ Commands:**\n\n"
+            "• `/id` - မိမိ သို့မဟုတ် Group ID ကြည့်ရန်\n"
+            "• `/info` - အကောင့် အချက်အလက် ကြည့်ရန်",
+            reply_markup=back_button
+        )
+    elif data == "about":
+        await callback_query.message.edit_text(
+            "ℹ️ **ဘော့အကြောင်း:**\n\n"
+            "• Flash Bot - Group Management & AI Assistant Bot ဖြစ်ပါတယ်။",
+            reply_markup=back_button
+        )
+    elif data == "rules":
+        await callback_query.message.edit_text(
+            "📜 **စည်းကမ်းချက်များ:**\n\n"
+            "• Group အတွင်း တခြားသူများကို ထိခိုက်စေသော စာများ၊ Link များ ပို့ခွင့်မရှိပါ။",
+            reply_markup=back_button
+        )
+
+# ==================== AUTO LEARNING & SMART REPLY ====================
+@app.on_message(filters.group & filters.text & ~filters.bot)
+async def auto_learn_and_reply(client, message: Message):
+    text = message.text.strip().lower()
     
-    if data == "menu_main":
-        await callback.message.edit_text("🤖 **Bot Help Menu - အမျိုးအစား ရွေးချယ်ပါ:**", reply_markup=main_help_keyboard())
-    elif data == "menu_owner":
-        await callback.message.edit_text("👑 **Owner Tools Commands:**\n\n• `/botchat` - Auto Chat On/Off\n• `/learn` - Auto Learn On/Off\n• `/clearmem` - Clear Memory\n• `/restart` - Restart Bot\n• `/gcast` - Broadcast Message", reply_markup=back_keyboard())
-    elif data == "menu_tag":
-        await callback.message.edit_text("📢 **Tag & Mention Commands:**\n\n• `/all <text>` - Mention all members\n• `/tagadmin` - Mention all admins\n• `/cancel` - Stop tagging", reply_markup=back_keyboard())
-    elif data == "menu_sec":
-        await callback.message.edit_text("🛡 **Group Security Commands:**\n\n• `/lock` - Lock Chat\n• `/unlock` - Unlock Chat\n• `/antispam` - Anti Spam Filter\n• `/nightmode` - Night Mode Settings", reply_markup=back_keyboard())
-    elif data == "menu_admin":
-        await callback.message.edit_text("🛠 **Admin Tools Commands:**\n\n• `/ban` - Ban User\n• `/unban` - Unban User\n• `/kick` - Kick User\n• `/mute` - Mute User\n• `/unmute` - Unmute User\n• `/pin` - Pin Message\n• `/purge` - Delete Messages", reply_markup=back_keyboard())
-    elif data == "menu_cleaner":
-        await callback.message.edit_text("🧹 **Cleaner & Night Commands:**\n\n• `/zombies` - Clean Deleted Accounts\n• `/del` - Delete Message\n• `/clean` - Clean Group Messages", reply_markup=back_keyboard())
-    elif data == "menu_ai":
-        await callback.message.edit_text("🎨 **AI & Media Commands:**\n\n• `/ai` - AI Chat Assistant\n• `/img` - Image Generator\n• `/song` - Download Audio\n• `/video` - Download Video", reply_markup=back_keyboard())
-    elif data == "menu_fun":
-        await callback.message.edit_text("🎲 **Fun & Games Commands:**\n\n• `/dice` - Roll Dice\n• `/dart` - Play Dart\n• `/basketball` - Play Basketball\n• `/shout` - Shout Text\n• `/type` - Type Animation", reply_markup=back_keyboard())
-    elif data == "menu_gen":
-        await callback.message.edit_text("🎈 **General & Utility Commands:**\n\n• `/ping` - Check Latency\n• `/id` - Get User/Chat ID\n• `/info` - User Information\n• `/calc` - Calculator", reply_markup=back_keyboard())
-    elif data == "menu_about":
-        await callback.message.edit_text(f"ℹ️ **About & Support:**\n\n• **Owner ID:** `{OWNER_ID}`\n• Flash Bot v2.0\n• Powered by Smart Matching Engine.", reply_markup=back_keyboard())
-    elif data == "menu_rules":
-        await callback.message.edit_text("📜 **Rules & Policy:**\n\n1. Spammings are restricted.\n2. Do not abuse system commands.", reply_markup=back_keyboard())
+    if text.startswith("/"):
+        return
 
-# =========================================
-# BOT CONTROL COMMANDS
-# =========================================
-@app.on_message(filters.command("botchat", prefixes=PREFIX) & filters.user(OWNER_ID))
-async def toggle_autochat(c, m):
-    global AUTO_REPLY_ACTIVE; AUTO_REPLY_ACTIVE = not AUTO_REPLY_ACTIVE
-    await m.reply_text(f"🤖 Auto Chat Engine: `{'ON 🟢' if AUTO_REPLY_ACTIVE else 'OFF 🔴'}`")
+    # Member များ စကားပြော/Reply ပြန်တာကို မှတ်သားမည်
+    if message.reply_to_message and message.reply_to_message.text:
+        parent_text = message.reply_to_message.text.strip().lower()
+        if not parent_text.startswith("/"):
+            chat_db[parent_text] = message.text
+            save_memory(chat_db)
 
-@app.on_message(filters.command("learn", prefixes=PREFIX) & filters.user(OWNER_ID))
-async def toggle_learn(c, m):
-    global LEARNING_ACTIVE; LEARNING_ACTIVE = not LEARNING_ACTIVE
-    await m.reply_text(f"🧠 Auto-Learn: `{'ON 🟢' if LEARNING_ACTIVE else 'OFF 🔴'}`")
+    # မှတ်ထားသည့်ထဲမှ အနီးစပ်ဆုံး တူသည်များကို ပြန်ဖြေပေးမည်
+    matches = get_close_matches(text, chat_db.keys(), n=1, cutoff=0.6)
+    if matches:
+        matched_key = matches[0]
+        reply_text = chat_db[matched_key]
+        await message.reply_text(reply_text)
 
-@app.on_message(filters.command("clearmem", prefixes=PREFIX) & filters.user(OWNER_ID))
-async def clear_memory(c, m): 
-    cursor.execute("DELETE FROM messages"); conn.commit(); await m.reply_text("🗑 DB Memory Cleared!")
-
-@app.on_message(filters.command("ping", prefixes=PREFIX))
-async def cmd_ping(c, m):
-    start = time.time(); msg = await m.reply_text("`Pinging...`")
-    await msg.edit_text(f"🏓 **Pong!** `{int((time.time() - start) * 1000)}ms`")
-
-# =========================================
-# START BOT
-# =========================================
 if __name__ == "__main__":
     app.run()
