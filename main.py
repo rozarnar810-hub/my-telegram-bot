@@ -16,7 +16,7 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, Message, 
 
 API_ID = 31788996
 API_HASH = "0c6714a879b2b1abba75dc4526521ca8"
-BOT_TOKEN = "8934169613:AAFFxJAJX4aUnSOCR2k4qa884ANqL7FjWQc"
+BOT_TOKEN = "8934169613:AAGQSnKmtCHMSKRViddiSAfwLZuLrSCdKNQ"
 OWNER_ID = 7974865879
 OWNER_LINK = "https://t.me/Ben_Hur_212"
 
